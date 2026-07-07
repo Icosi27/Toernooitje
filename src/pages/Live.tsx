@@ -7,6 +7,7 @@ import { individualStandings } from "../logic/individual";
 import { slotLabel } from "../logic/resolve";
 import { scheduledMatches } from "../logic/schedule";
 import { decodeShare } from "../logic/share";
+import { useCloudTournament } from "../logic/cloud";
 import { AdBlock, DonateButton } from "../components/monetization";
 
 type Page = "toernooi" | "standen" | "schema";
@@ -16,6 +17,21 @@ export default function Live() {
   const { id } = useParams();
   const t = useTournament(id);
   return <LiveInner t={t} />;
+}
+
+/** Live meekijken op elk apparaat: haalt het toernooi online op en werkt live bij. */
+export function KijkLive() {
+  const { id } = useParams();
+  const [params] = useSearchParams();
+  const { t, loading, error } = useCloudTournament(id, params.get("s"), params.get("a"));
+  if (loading) return <div className="p-10 text-center text-slate-500">Laden…</div>;
+  if (error || !t)
+    return (
+      <div className="p-10 text-center">
+        {error ?? "Toernooi niet gevonden."} <Link to="/" className="underline">Naar home</Link>
+      </div>
+    );
+  return <LiveInner t={t} shared live />;
 }
 
 /** Gedeelde weergave: het toernooi zit gecomprimeerd in de link zelf (momentopname). */
@@ -28,7 +44,15 @@ export function Bekijk() {
   return <LiveInner t={t} shared />;
 }
 
-function LiveInner({ t, shared = false }: { t: Tournament | undefined; shared?: boolean }) {
+function LiveInner({
+  t,
+  shared = false,
+  live = false,
+}: {
+  t: Tournament | undefined;
+  shared?: boolean;
+  live?: boolean;
+}) {
   const [page, setPage] = useState<Page>("standen");
   const [slideshow, setSlideshow] = useState(false);
 
@@ -106,9 +130,14 @@ function LiveInner({ t, shared = false }: { t: Tournament | undefined; shared?: 
       </header>
 
       <main className="mx-auto max-w-4xl space-y-8 px-4 py-8">
-        {shared && (
+        {shared && !live && (
           <p className="rounded bg-slate-100 px-3 py-2 text-center text-xs text-slate-500">
             Gedeelde momentopname — vraag de organisator om een nieuwe link voor de laatste stand.
+          </p>
+        )}
+        {live && (
+          <p className="rounded bg-green-50 px-3 py-2 text-center text-xs text-green-700">
+            ● Live — standen en uitslagen worden automatisch bijgewerkt.
           </p>
         )}
         <AdBlock t={t} />

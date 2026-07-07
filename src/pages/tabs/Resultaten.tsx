@@ -6,6 +6,7 @@ import { EmptyState } from "../../components/ui";
 import { pouleStandings } from "../../logic/standings";
 import { individualStandings } from "../../logic/individual";
 import { allMatches, slotLabel, winnerOf } from "../../logic/resolve";
+import { pushScore } from "../../logic/cloud";
 
 export default function Resultaten() {
   const t = useOutletContext<Tournament>();
@@ -13,7 +14,7 @@ export default function Resultaten() {
   const [divIdx, setDivIdx] = useState(0);
   const div = t.divisions[Math.min(divIdx, t.divisions.length - 1)];
 
-  const setScore = (matchId: string, side: "A" | "B" | "pA" | "pB", val: string) =>
+  const setScore = (matchId: string, side: "A" | "B" | "pA" | "pB", val: string) => {
     update(t.id, (x) => {
       for (const d of x.divisions) {
         const m = allMatches(d).find((y) => y.id === matchId);
@@ -25,6 +26,8 @@ export default function Resultaten() {
         else m.pensB = v;
       }
     });
+    pushScore(t.id, matchId);
+  };
 
   if (div.stages.length === 0)
     return (

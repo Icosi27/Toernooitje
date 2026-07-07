@@ -180,6 +180,8 @@ export interface Tournament {
   breakBetween: number; // minuten rust tussen wedstrijden op een veld
   startTime: string; // "HH:MM"
   presentation: Presentation;
+  /** online synchronisatie (Supabase); writeKey blijft op het apparaat van de organisator */
+  cloud?: { online: boolean; writeKey: string };
 }
 
 export const defaultScoring = (): ScoringConfig => ({

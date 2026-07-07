@@ -1,40 +1,28 @@
-import { Link, useParams } from "react-router-dom";
+import { useState } from "react";
+import { Link, useParams, useSearchParams } from "react-router-dom";
 import { useApp, useTournament } from "../store";
-import type { Match } from "../types";
+import type { Match, Tournament } from "../types";
 import { allMatches, slotLabel, winnerOf } from "../logic/resolve";
 import { isPlayed } from "../logic/standings";
+import { clientFromParams, pushScore, submitScore, useCloudTournament } from "../logic/cloud";
 import { DonateButton } from "../components/monetization";
 
 /**
  * Invoerportaal voor scheidsrechters (/scheids/:id/:refId — alleen eigen
  * wedstrijden) en beheerders met uitslag-rechten (/invoer/:id — alles).
- * Werkt op het apparaat waarop het toernooi staat; voor invoer op andere
- * telefoons is de (nog te bouwen) online synchronisatie nodig.
+ * Op het apparaat van de organisator werkt het lokaal; op andere telefoons
+ * via de online synchronisatie (de link bevat dan ?k=schrijfsleutel).
  */
 export default function Portal() {
   const { id, refId } = useParams();
-  const t = useTournament(id);
+  const local = useTournament(id);
+  if (local) return <LocalPortal t={local} refId={refId} />;
+  return <CloudPortal id={id} refId={refId} />;
+}
+
+function LocalPortal({ t, refId }: { t: Tournament; refId?: string }) {
   const update = useApp((s) => s.updateTournament);
-
-  if (!t)
-    return (
-      <div className="p-10 text-center">
-        Toernooi niet gevonden. <Link to="/" className="underline">Naar home</Link>
-      </div>
-    );
-
-  const referee = refId ? t.referees.find((r) => r.id === refId) : undefined;
-  if (refId && !referee)
-    return <div className="p-10 text-center">Ongeldige scheidsrechterlink.</div>;
-
-  const rows = t.divisions
-    .flatMap((d) => allMatches(d).map((m) => ({ m, d })))
-    .filter(({ m }) => !refId || m.refereeId === refId)
-    .sort((a, b) => (a.m.start ?? "99:99").localeCompare(b.m.start ?? "99:99"));
-
-  const fieldName = (fid?: string) => t.fields.find((f) => f.id === fid)?.name;
-
-  const setScore = (matchId: string, side: "A" | "B", val: string) =>
+  const setScore = (matchId: string, side: "A" | "B", val: string) => {
     update(t.id, (x) => {
       for (const d of x.divisions) {
         const m = allMatches(d).find((y) => y.id === matchId);
@@ -45,7 +33,83 @@ export default function Portal() {
         }
       }
     });
+    pushScore(t.id, matchId);
+  };
+  return <PortalView t={t} refId={refId} onScore={setScore} />;
+}
 
+function CloudPortal({ id, refId }: { id?: string; refId?: string }) {
+  const [params] = useSearchParams();
+  const writeKey = params.get("k");
+  const { t, loading, error, refresh } = useCloudTournament(id, params.get("s"), params.get("a"));
+  // optimistische invoer: direct tonen wat je typt, server volgt
+  const [pending, setPending] = useState<Record<string, { a?: number; b?: number }>>({});
+
+  if (loading) return <div className="p-10 text-center text-slate-500">Laden…</div>;
+  if (error || !t)
+    return (
+      <div className="p-10 text-center">
+        {error ?? "Toernooi niet gevonden."} <Link to="/" className="underline">Naar home</Link>
+      </div>
+    );
+  if (!writeKey)
+    return (
+      <div className="p-10 text-center text-slate-600">
+        Deze invoerlink is onvolledig (schrijfsleutel ontbreekt). Vraag de organisator om de link
+        opnieuw te kopiëren.
+      </div>
+    );
+
+  // pending-waarden over de serverdata heen leggen
+  for (const d of t.divisions) {
+    for (const m of allMatches(d)) {
+      const p = pending[m.id];
+      if (p) {
+        if ("a" in p) m.scoreA = p.a;
+        if ("b" in p) m.scoreB = p.b;
+      }
+    }
+  }
+
+  const setScore = (matchId: string, side: "A" | "B", val: string) => {
+    const v = val === "" ? undefined : Math.max(0, +val);
+    setPending((prev) => ({
+      ...prev,
+      [matchId]: { ...prev[matchId], [side === "A" ? "a" : "b"]: v },
+    }));
+    const sb = clientFromParams(null, null);
+    if (!sb) return;
+    let cur: Match | undefined;
+    for (const d of t.divisions) cur = cur ?? allMatches(d).find((y) => y.id === matchId);
+    const a = side === "A" ? (v ?? null) : (cur?.scoreA ?? null);
+    const b = side === "B" ? (v ?? null) : (cur?.scoreB ?? null);
+    submitScore(sb, t.id, writeKey, matchId, a, b).catch(() => refresh());
+  };
+
+  return <PortalView t={t} refId={refId} onScore={setScore} cloud />;
+}
+
+function PortalView({
+  t,
+  refId,
+  onScore,
+  cloud = false,
+}: {
+  t: Tournament;
+  refId?: string;
+  onScore: (matchId: string, side: "A" | "B", val: string) => void;
+  cloud?: boolean;
+}) {
+  const referee = refId ? t.referees.find((r) => r.id === refId) : undefined;
+  if (refId && !referee)
+    return <div className="p-10 text-center">Ongeldige scheidsrechterlink.</div>;
+
+  const rows = t.divisions
+    .flatMap((d) => allMatches(d).map((m) => ({ m, d })))
+    .filter(({ m }) => !refId || m.refereeId === refId)
+    .sort((a, b) => (a.m.start ?? "99:99").localeCompare(b.m.start ?? "99:99"));
+
+  const fieldName = (fid?: string) => t.fields.find((f) => f.id === fid)?.name;
   const done = rows.filter(({ m }) => isPlayed(m)).length;
 
   return (
@@ -56,6 +120,7 @@ export default function Portal() {
             <h1 className="text-lg font-bold">{t.name}</h1>
             <p className="text-xs opacity-80">
               {referee ? `Uitslagen invoeren — ${referee.name}` : "Uitslagen invoeren — beheerder"}
+              {cloud && " · live verbonden"}
             </p>
           </div>
           <DonateButton small />
@@ -83,7 +148,7 @@ export default function Portal() {
               a={slotLabel(m.a, d, t.scoring)}
               b={slotLabel(m.b, d, t.scoring)}
               m={m}
-              onScore={(side, val) => setScore(m.id, side, val)}
+              onScore={(side, val) => onScore(m.id, side, val)}
             />
           ))}
         </div>

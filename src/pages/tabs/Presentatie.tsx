@@ -5,7 +5,146 @@ import { useApp } from "../../store";
 import { Section, Toggle } from "../../components/ui";
 import { DONATE_URL } from "../../components/monetization";
 import { appUrl, copyText, encodeShare } from "../../logic/share";
+import { getClient, getCloudConfig, publishTournament, setCloudConfig } from "../../logic/cloud";
 import { uid } from "../../logic/id";
+
+/**
+ * Live online zetten via Supabase: eenmalig URL + anon key plakken, daarna
+ * per toernooi één klik. Links voor kijkers en scheidsrechters krijgen de
+ * servergegevens mee zodat ze op elke telefoon werken.
+ */
+function CloudSharing({
+  t,
+  copied,
+  copy,
+}: {
+  t: Tournament;
+  copied: string | null;
+  copy: (key: string, url: string) => void;
+}) {
+  const update = useApp((s) => s.updateTournament);
+  const [config, setConfig] = useState(getCloudConfig());
+  const [url, setUrl] = useState(config?.url ?? "");
+  const [anon, setAnon] = useState(config?.anonKey ?? "");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [showConfig, setShowConfig] = useState(!config);
+
+  const online = !!t.cloud?.online;
+  const qs = config
+    ? `?s=${encodeURIComponent(config.url)}&a=${encodeURIComponent(config.anonKey)}`
+    : "";
+  const qsWithKey = t.cloud ? `${qs}&k=${encodeURIComponent(t.cloud.writeKey)}` : qs;
+
+  const goOnline = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      update(t.id, (x) => {
+        if (!x.cloud) x.cloud = { online: true, writeKey: uid() + uid() };
+        x.cloud.online = true;
+      });
+      const fresh = useApp.getState().tournaments.find((x) => x.id === t.id)!;
+      await publishTournament(fresh);
+    } catch (e) {
+      setError(String((e as Error).message ?? e));
+      update(t.id, (x) => {
+        if (x.cloud) x.cloud.online = false;
+      });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="card p-4">
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <div className="font-semibold">
+            Live online{" "}
+            {online ? (
+              <span className="ml-1 rounded bg-green-100 px-2 py-0.5 text-xs text-green-700">● Live</span>
+            ) : (
+              <span className="ml-1 rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-500">Offline</span>
+            )}
+          </div>
+          <p className="mt-1 text-xs text-slate-500">
+            Deelnemers zien de standen live op hun eigen telefoon en scheidsrechters vullen zelf
+            uitslagen in. Gratis via je eigen Supabase-account.
+          </p>
+        </div>
+        {config && !online && (
+          <button className="btn-primary shrink-0" disabled={busy} onClick={goOnline}>
+            {busy ? "Bezig…" : "Zet live"}
+          </button>
+        )}
+        {online && (
+          <button
+            className="btn-ghost shrink-0 text-red-500"
+            onClick={() => update(t.id, (x) => x.cloud && (x.cloud.online = false))}
+          >
+            Stop live
+          </button>
+        )}
+      </div>
+
+      {error && <p className="mt-2 text-xs text-red-600">{error}</p>}
+
+      {(showConfig || !config) && (
+        <div className="mt-4 space-y-3 rounded bg-slate-50 p-3">
+          <p className="text-xs text-slate-600">
+            <b>Eenmalige setup (gratis):</b> 1) maak een project op{" "}
+            <a href="https://supabase.com" target="_blank" rel="noreferrer" className="underline">supabase.com</a>,
+            2) plak de inhoud van <code>supabase/setup.sql</code> (staat in dit project) in de SQL
+            Editor en klik Run, 3) kopieer bij Project Settings → API de URL en de "anon public" key
+            hierheen.
+          </p>
+          <input className="input" placeholder="Supabase URL (https://xxxx.supabase.co)" value={url} onChange={(e) => setUrl(e.target.value)} />
+          <input className="input" placeholder="Anon public key (eyJ…)" value={anon} onChange={(e) => setAnon(e.target.value)} />
+          <button
+            className="btn-outline"
+            disabled={!url.trim() || !anon.trim()}
+            onClick={() => {
+              const c = { url: url.trim().replace(/\/$/, ""), anonKey: anon.trim() };
+              setCloudConfig(c);
+              setConfig(c);
+              setShowConfig(false);
+            }}
+          >
+            Opslaan
+          </button>
+        </div>
+      )}
+      {config && !showConfig && (
+        <button className="mt-2 cursor-pointer text-xs text-slate-400 underline" onClick={() => setShowConfig(true)}>
+          servergegevens wijzigen
+        </button>
+      )}
+
+      {online && config && (
+        <div className="mt-4 space-y-2">
+          <div className="flex items-center justify-between gap-3 rounded bg-slate-50 px-3 py-2">
+            <span className="text-sm">📺 Kijklink voor deelnemers (live standen)</span>
+            <button className="btn-outline" onClick={() => copy("live", appUrl(`/kijk/${t.id}${qs}`))}>
+              {copied === "live" ? "✓ Gekopieerd" : "Kopieer"}
+            </button>
+          </div>
+          <div className="flex items-center justify-between gap-3 rounded bg-slate-50 px-3 py-2">
+            <span className="text-sm">✏️ Invoerlink beheerders (alle uitslagen)</span>
+            <button className="btn-outline" onClick={() => copy("entry-live", appUrl(`/invoer/${t.id}${qsWithKey}`))}>
+              {copied === "entry-live" ? "✓ Gekopieerd" : "Kopieer"}
+            </button>
+          </div>
+          <p className="text-xs text-slate-500">
+            Scheidsrechterlinks kopieer je per scheidsrechter op de Deelnemers-pagina — die bevatten
+            dan automatisch de live-verbinding. Let op: links werken pas op andere telefoons als de
+            app online staat (bijv. GitHub Pages), niet vanaf localhost.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
 
 function fileToDataUrl(file: File): Promise<string> {
   return new Promise((res, rej) => {
@@ -49,37 +188,21 @@ export default function Presentatie() {
       </div>
 
       <Section title="Delen" subtitle="Laat deelnemers de standen en het schema bekijken" defaultOpen>
-        <div className="space-y-3">
-          <div className="card flex items-center justify-between gap-4 p-4">
-            <div>
-              <div className="font-semibold">Deellink voor deelnemers</div>
-              <p className="mt-1 text-xs text-slate-500">
-                Stuur deze link via WhatsApp of mail. De volledige stand zit in de link zelf
-                (momentopname) — kopieer hem opnieuw nadat je uitslagen hebt ingevuld.
-              </p>
-            </div>
-            <button
-              className="btn-primary shrink-0"
-              onClick={() => copy("share", appUrl(`/bekijk?d=${encodeShare(t)}`))}
-            >
-              {copied === "share" ? "✓ Gekopieerd" : "Kopieer link"}
-            </button>
+        <CloudSharing t={t} copied={copied} copy={copy} />
+        <div className="card mt-3 flex items-center justify-between gap-4 p-4">
+          <div>
+            <div className="font-semibold">Deellink zonder internet-account (momentopname)</div>
+            <p className="mt-1 text-xs text-slate-500">
+              De volledige stand zit in de link zelf. Werkt altijd, maar werkt níet live bij —
+              kopieer hem opnieuw nadat je uitslagen hebt ingevuld.
+            </p>
           </div>
-          <div className="card flex items-center justify-between gap-4 p-4">
-            <div>
-              <div className="font-semibold">Invoerlink uitslagen (beheerders)</div>
-              <p className="mt-1 text-xs text-slate-500">
-                Simpele pagina om alleen uitslagen in te vullen — handig op dit apparaat aan de
-                wedstrijdtafel. Werkt op andere telefoons zodra online synchronisatie er is.
-              </p>
-            </div>
-            <button
-              className="btn-outline shrink-0"
-              onClick={() => copy("entry", appUrl(`/invoer/${t.id}`))}
-            >
-              {copied === "entry" ? "✓ Gekopieerd" : "Kopieer link"}
-            </button>
-          </div>
+          <button
+            className="btn-outline shrink-0"
+            onClick={() => copy("share", appUrl(`/bekijk?d=${encodeShare(t)}`))}
+          >
+            {copied === "share" ? "✓ Gekopieerd" : "Kopieer link"}
+          </button>
         </div>
       </Section>
 

@@ -26,6 +26,26 @@ Gratis online toernooisoftware voor (voetbal)toernooien, geïnspireerd op Tourni
   organisatoren kunnen de reclame per toernooi **afkopen** en er eigen
   sponsorblokken tonen
 - **🎁 Gift-knop** — bezoekers kunnen doneren om Toernooitje draaiende te houden
+- **Delen & live sync**
+  - Deellink zonder account: de complete stand zit gecomprimeerd in de link zelf
+    (momentopname)
+  - **Live online** via een gratis Supabase-project: deelnemers zien standen live
+    op hun eigen telefoon, scheidsrechters vullen uitslagen in via hun eigen
+    inloglink, beheerders via een invoerlink — alles werkt direct bij op alle
+    schermen
+  - Scheidsrechterportaal: alleen de eigen toegewezen wedstrijden, grote
+    invoervelden voor mobiel
+
+## Live online zetten (eenmalig, gratis)
+
+1. Maak een gratis project op [supabase.com](https://supabase.com)
+2. Plak de inhoud van [`supabase/setup.sql`](supabase/setup.sql) in de SQL Editor en klik **Run**
+3. Kopieer bij *Project Settings → API* de **Project URL** en de **anon public** key
+4. Plak ze in Toernooitje bij *Presentatie → Delen → Live online* en klik **Zet live**
+
+De app zelf wordt via GitHub Actions automatisch op **GitHub Pages** gezet
+(Settings → Pages → Source: *GitHub Actions* eenmalig aanzetten), zodat de
+links op elke telefoon werken.
 
 ## Ontwikkelen
 

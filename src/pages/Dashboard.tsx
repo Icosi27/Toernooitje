@@ -1,6 +1,61 @@
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, NavLink, Outlet, useNavigate, useParams } from "react-router-dom";
-import { useTournament } from "../store";
+import { useApp, useTournament } from "../store";
+import type { Tournament } from "../types";
+import { applyScores, getClient, publishTournament, subscribeScores, type ScoreRow } from "../logic/cloud";
 import { DonateButton } from "../components/monetization";
+
+/**
+ * Houdt een online gezet toernooi synchroon: elke lokale wijziging wordt
+ * (met een korte vertraging) gepubliceerd, en uitslagen die scheidsrechters
+ * op hun eigen telefoon invullen stromen live het dashboard binnen.
+ */
+function useCloudSync(t: Tournament | undefined) {
+  const update = useApp((s) => s.updateTournament);
+  const [syncError, setSyncError] = useState(false);
+  const online = !!t?.cloud?.online;
+  const tJson = useMemo(
+    () => (online ? JSON.stringify({ ...t, cloud: undefined }) : ""),
+    [t, online]
+  );
+  const skipFirst = useRef(true);
+
+  // lokale wijzigingen publiceren (debounced)
+  useEffect(() => {
+    if (!online || !t) return;
+    if (skipFirst.current) {
+      // eerste render is geen wijziging
+      skipFirst.current = false;
+      return;
+    }
+    const h = setTimeout(() => {
+      publishTournament(t)
+        .then(() => setSyncError(false))
+        .catch(() => setSyncError(true));
+    }, 1500);
+    return () => clearTimeout(h);
+  }, [tJson, online]);
+
+  // uitslagen van buitenaf binnenhalen
+  useEffect(() => {
+    if (!online || !t) return;
+    const sb = getClient();
+    if (!sb) return;
+    const id = t.id;
+    const load = async () => {
+      const { data } = await sb
+        .from("scores")
+        .select("match_id, score_a, score_b, pens_a, pens_b")
+        .eq("tournament_id", id);
+      if (!data || data.length === 0) return;
+      update(id, (x) => applyScores(x, data as ScoreRow[]));
+    };
+    load();
+    return subscribeScores(sb, id, load);
+  }, [t?.id, online]);
+
+  return syncError;
+}
 
 const NAV = [
   { to: "", icon: "⚙️", label: "Algemeen", end: true },
@@ -15,6 +70,7 @@ export default function Dashboard() {
   const { id } = useParams();
   const t = useTournament(id);
   const nav = useNavigate();
+  useCloudSync(t);
 
   if (!t) {
     return (

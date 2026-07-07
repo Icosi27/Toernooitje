@@ -4,6 +4,7 @@ import type { Tournament } from "../../types";
 import { useApp } from "../../store";
 import { EmptyState, Modal, ModalActions, Toggle } from "../../components/ui";
 import { appUrl, copyText } from "../../logic/share";
+import { liveQuery } from "../../logic/cloud";
 import { uid } from "../../logic/id";
 
 type Tab = "teams" | "scheidsrechters" | "beheerders";
@@ -210,7 +211,7 @@ export default function Deelnemers() {
                     <button
                       className="btn-ghost text-xs"
                       title="Inloglink: pagina waar deze scheidsrechter zijn uitslagen invult"
-                      onClick={() => copy(r.id, appUrl(`/scheids/${t.id}/${r.id}`))}
+                      onClick={() => copy(r.id, appUrl(`/scheids/${t.id}/${r.id}${liveQuery(t, true)}`))}
                     >
                       {copied === r.id ? "✓ gekopieerd" : "🔗 inloglink"}
                     </button>
@@ -262,7 +263,7 @@ export default function Deelnemers() {
                     <button
                       className="btn-ghost text-xs"
                       title="Invoerlink: pagina om uitslagen in te vullen"
-                      onClick={() => copy(a.id, appUrl(`/invoer/${t.id}`))}
+                      onClick={() => copy(a.id, appUrl(`/invoer/${t.id}${liveQuery(t, true)}`))}
                     >
                       {copied === a.id ? "✓ gekopieerd" : "🔗 invoerlink"}
                     </button>
