@@ -15,7 +15,7 @@ import Schema from "./pages/tabs/Schema";
 import Plattegrond from "./pages/tabs/Plattegrond";
 import Presentatie from "./pages/tabs/Presentatie";
 import Resultaten from "./pages/tabs/Resultaten";
-import Live, { Bekijk, KijkLive } from "./pages/Live";
+import Live, { Bekijk, KijkLive, Tv } from "./pages/Live";
 import Portal from "./pages/Portal";
 import Inschrijven from "./pages/Inschrijven";
 
@@ -43,6 +43,7 @@ const router = createHashRouter([
   { path: "/live/:id", element: <Live /> },
   { path: "/bekijk", element: <Bekijk /> },
   { path: "/kijk/:id", element: <KijkLive /> },
+  { path: "/tv/:id", element: <Tv /> },
   { path: "/inschrijven/:id", element: <Inschrijven /> },
   { path: "/invoer/:id", element: <Portal /> },
   { path: "/scheids/:id/:refId", element: <Portal /> },

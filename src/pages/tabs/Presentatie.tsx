@@ -126,9 +126,26 @@ function CloudSharing({
       {online && config && (
         <div className="mt-4 space-y-2">
           <div className="flex items-center justify-between gap-3 rounded bg-slate-50 px-3 py-2">
-            <span className="text-sm">📺 Kijklink voor deelnemers (live standen)</span>
-            <button className="btn-outline" onClick={() => copy("live", appUrl(`/kijk/${t.id}${qs}`))}>
+            <div className="min-w-0 text-sm">
+              📱 Kijklink — teams, coaches en bezoekers
+              <div className="text-xs text-slate-500">
+                Eigen team kiezen en volgen, alle standen en uitslagen live
+              </div>
+            </div>
+            <button className="btn-outline shrink-0" onClick={() => copy("live", appUrl(`/kijk/${t.id}${qs}`))}>
               {copied === "live" ? "✓ Gekopieerd" : "Kopieer"}
+            </button>
+          </div>
+          <div className="flex items-center justify-between gap-3 rounded bg-slate-50 px-3 py-2">
+            <div className="min-w-0 text-sm">
+              📺 Presentatielink — kantinescherm / casten
+              <div className="text-xs text-slate-500">
+                Opent direct in de donkere diavoorstelling, zonder knoppen — ideaal om te
+                broadcasten of te mirroren naar een tv
+              </div>
+            </div>
+            <button className="btn-outline shrink-0" onClick={() => copy("tv-live", appUrl(`/tv/${t.id}${qs}`))}>
+              {copied === "tv-live" ? "✓ Gekopieerd" : "Kopieer"}
             </button>
           </div>
           <div className="flex items-center justify-between gap-3 rounded bg-slate-50 px-3 py-2">
@@ -268,7 +285,12 @@ export default function Presentatie() {
               op een groot scherm als diavoorstelling.
             </p>
           </div>
-          <Link to={`/live/${t.id}`} className="btn-primary shrink-0">Open website</Link>
+          <div className="flex shrink-0 flex-col gap-2">
+            <Link to={`/live/${t.id}`} className="btn-primary">Open website</Link>
+            <Link to={`/tv/${t.id}`} className="btn-outline" title="Direct in presentatiemodus — voor het scherm in de kantine">
+              📺 Open presentatie
+            </Link>
+          </div>
         </div>
       </div>
 

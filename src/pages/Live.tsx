@@ -38,6 +38,28 @@ export function KijkLive() {
   return <LiveInner t={t} shared live />;
 }
 
+/**
+ * Broadcast-link (/tv/:id) voor het kantinescherm, casten of mirroring:
+ * opent direct in presentatiemodus, zonder bedieningsknoppen. Werkt op het
+ * apparaat van de organisator (lokaal) en op elk ander scherm (via de cloud).
+ */
+export function Tv() {
+  const { id } = useParams();
+  const local = useTournament(id);
+  const [params] = useSearchParams();
+  const cloud = useCloudTournament(local ? undefined : id, params.get("s"), params.get("a"));
+  const t = local ?? cloud.t;
+  if (!local && cloud.loading)
+    return <div className="p-10 text-center text-slate-500">Laden…</div>;
+  if (!t)
+    return (
+      <div className="p-10 text-center">
+        {cloud.error ?? "Toernooi niet gevonden."} <Link to="/" className="underline">Naar home</Link>
+      </div>
+    );
+  return <LiveInner t={t} shared live={!local} presentation />;
+}
+
 /** Gedeelde weergave: het toernooi zit gecomprimeerd in de link zelf (momentopname). */
 export function Bekijk() {
   const [params] = useSearchParams();
@@ -97,14 +119,17 @@ function LiveInner({
   t,
   shared = false,
   live = false,
+  presentation = false,
 }: {
   t: Tournament | undefined;
   shared?: boolean;
   live?: boolean;
+  /** broadcast-modus (/tv/:id): start direct in de diavoorstelling, zonder knoppen */
+  presentation?: boolean;
 }) {
   const [params] = useSearchParams();
   const [page, setPage] = useState<Page>("standen");
-  const [slideshow, setSlideshow] = useState(false);
+  const [slideshow, setSlideshow] = useState(presentation);
   const [slideIdx, setSlideIdx] = useState(0);
   const [myTeam, setMyTeam] = useState<string>("");
   const [copied, setCopied] = useState(false);
@@ -269,7 +294,7 @@ function LiveInner({
               Inschrijven
             </a>
           )}
-          {!shared && (
+          {!shared && !presentation && (
             <button
               onClick={() => setSlideshow(!slideshow)}
               className={`ml-auto cursor-pointer rounded-full px-4 py-1.5 text-sm ${
