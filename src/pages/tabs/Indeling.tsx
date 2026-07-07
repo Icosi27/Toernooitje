@@ -5,6 +5,7 @@ import { useApp } from "../../store";
 import { Modal, ModalActions } from "../../components/ui";
 import { FORMATS, buildFormat, nextPowerOfTwo, seedKnockoutWithTeams } from "../../logic/formats";
 import { buildBracket } from "../../logic/bracket";
+import { buildIndividualStage } from "../../logic/individual";
 import { roundRobin } from "../../logic/roundrobin";
 import { slotLabel } from "../../logic/resolve";
 import { TeamBadge } from "../../components/TeamBadge";
@@ -94,8 +95,14 @@ export default function Indeling() {
       {div.stages.length === 0 ? (
         <>
           <h2 className="mb-6 text-center text-2xl font-bold">Kies een indeling voor deze divisie</h2>
+          {div.individualMode && (
+            <p className="mb-4 text-center text-sm text-slate-500">
+              Deze divisie is een <b>individuele sport</b>: spelers loten elke ronde nieuwe teams.
+              Team-indelingen (poules, brackets) zijn daarom niet van toepassing.
+            </p>
+          )}
           <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
-            {FORMATS.map((f) => (
+            {(div.individualMode ? FORMATS.filter((f) => f.key === "individueel") : FORMATS).map((f) => (
               <button
                 key={f.key}
                 onClick={() => setPick(f.key)}
@@ -107,13 +114,17 @@ export default function Indeling() {
               </button>
             ))}
           </div>
-          <p className="mt-8 text-center text-sm text-slate-600">
-            Of bouw je toernooi zelf op door losse poules en brackets te combineren.
-          </p>
-          <div className="mt-3 flex justify-center gap-3">
-            <button className="btn-outline" onClick={() => setPick("poule")}>+ Poule</button>
-            <button className="btn-outline" onClick={() => setPick("bracket")}>+ Bracket</button>
-          </div>
+          {!div.individualMode && (
+            <>
+              <p className="mt-8 text-center text-sm text-slate-600">
+                Of bouw je toernooi zelf op door losse poules en brackets te combineren.
+              </p>
+              <div className="mt-3 flex justify-center gap-3">
+                <button className="btn-outline" onClick={() => setPick("poule")}>+ Poule</button>
+                <button className="btn-outline" onClick={() => setPick("bracket")}>+ Bracket</button>
+              </div>
+            </>
+          )}
         </>
       ) : (
         <StagesView t={t} divId={div.id} />
@@ -166,7 +177,11 @@ export default function Indeling() {
                   <input type="number" min={1} max={20} className="input" value={roundsCount} onChange={(e) => setRoundsCount(+e.target.value)} />
                 </div>
                 <p className="text-xs text-slate-500">
-                  Spelers loten elke ronde nieuwe teams. Voeg spelers toe bij Deelnemers (schakel "individuele sport" in).
+                  Er {div.players.length === 1 ? "is" : "zijn"} nu <b>{div.players.length}</b>{" "}
+                  speler{div.players.length !== 1 ? "s" : ""} in deze divisie; per wedstrijd zijn er{" "}
+                  {teamSize * 2} nodig. Te weinig? Dan maken we tijdelijke plekken aan die je bij
+                  Deelnemers hernoemt. Voeg je later spelers toe, gebruik dan "Opnieuw loten" op deze
+                  pagina.
                 </p>
               </>
             )}
@@ -305,6 +320,27 @@ function StagesView({ t, divId }: { t: Tournament; divId: string }) {
           )}
           {s.type === "individual" && (
             <div className="space-y-3">
+              <button
+                className="btn-outline"
+                onClick={() => {
+                  const hasScores = s.rounds.some((r) => r.some((m) => m.scoreA !== undefined));
+                  if (
+                    hasScores &&
+                    !confirm("Er zijn al uitslagen ingevuld; opnieuw loten wist die. Doorgaan?")
+                  )
+                    return;
+                  update(t.id, (x) => {
+                    const d = x.divisions.find((dd) => dd.id === divId)!;
+                    d.stages = d.stages.map((st) =>
+                      st.type === "individual"
+                        ? buildIndividualStage(d.players, st.teamSize, st.roundsCount)
+                        : st
+                    );
+                  });
+                }}
+              >
+                🔀 Opnieuw loten met huidige spelers ({div.players.length})
+              </button>
               {s.rounds.map((round, ri) => (
                 <div key={ri} className="card p-3 text-sm">
                   <div className="mb-1 font-semibold">Ronde {ri + 1}</div>

@@ -130,7 +130,19 @@ export default function Deelnemers() {
                 icon="👕"
                 title="Voeg teams toe aan deze divisie"
                 subtitle="Of begin met het maken van een indeling en voeg de teams later toe."
-                action={<button className="btn-outline" onClick={() => setModal("team")}>Voeg team toe</button>}
+                action={
+                  <div className="flex flex-col items-center gap-3">
+                    <button className="btn-outline" onClick={() => setModal("team")}>Voeg team toe</button>
+                    <button
+                      className="cursor-pointer text-xs text-slate-500 underline"
+                      onClick={() =>
+                        u((x) => (x.divisions.find((d) => d.id === div.id)!.individualMode = true))
+                      }
+                    >
+                      Geen teamsport? Klik hier om over te schakelen naar een individuele sport.
+                    </button>
+                  </div>
+                }
               />
             ) : (
               <>
@@ -242,7 +254,17 @@ export default function Deelnemers() {
                 <EmptyState
                   icon="🧑"
                   title="Voeg spelers toe aan deze divisie"
-                  subtitle="Bij een individuele sport loten spelers elke ronde nieuwe teams (bijv. 4x4)."
+                  subtitle="Bij een individuele sport loten spelers elke ronde nieuwe teams (bijv. 4x4). Punten tellen per speler; de beste speler wint het toernooi."
+                  action={
+                    <button
+                      className="cursor-pointer text-xs text-slate-500 underline"
+                      onClick={() =>
+                        u((x) => (x.divisions.find((d) => d.id === div.id)!.individualMode = false))
+                      }
+                    >
+                      Toch een teamsport? Klik hier om terug te schakelen naar teams.
+                    </button>
+                  }
                 />
               )}
               <div className="card divide-y divide-slate-100">
@@ -461,12 +483,16 @@ export default function Deelnemers() {
                                 reg.status = "geaccepteerd";
                                 const d =
                                   x.divisions.find((dd) => dd.id === reg.divisionId) ?? x.divisions[0];
-                                d.teams.push({
-                                  id: uid(),
-                                  name: reg.teamName,
-                                  email: reg.email,
-                                  players: [],
-                                });
+                                if (d.individualMode) {
+                                  d.players.push({ id: uid(), name: reg.teamName });
+                                } else {
+                                  d.teams.push({
+                                    id: uid(),
+                                    name: reg.teamName,
+                                    email: reg.email,
+                                    players: [],
+                                  });
+                                }
                               });
                               decideRegistration(t.id, r.id, "geaccepteerd");
                             }}

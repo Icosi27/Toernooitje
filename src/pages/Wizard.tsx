@@ -11,7 +11,9 @@ export default function Wizard() {
   const [days, setDays] = useState<string[]>([new Date().toISOString().slice(0, 10)]);
   const [locations, setLocations] = useState<string[]>([""]);
   const [esport, setEsport] = useState(false);
+  const [individual, setIndividual] = useState(false);
   const [divisions, setDivisions] = useState<string[]>(["Divisie 1"]);
+  const update = useApp((s) => s.updateTournament);
 
   const finish = () => {
     const id = createTournament(
@@ -21,6 +23,7 @@ export default function Wizard() {
       divisions.map((d) => d.trim()).filter(Boolean),
       esport
     );
+    if (individual) update(id, (x) => x.divisions.forEach((d) => (d.individualMode = true)));
     nav(`/t/${id}`);
   };
 
@@ -136,6 +139,17 @@ export default function Wizard() {
                   >
                     Nog een divisie toevoegen
                   </button>
+                  <label className="flex items-center gap-2 pt-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={individual}
+                      onChange={(e) => setIndividual(e.target.checked)}
+                    />
+                    <span>
+                      Individueel toernooi — geen vaste teams maar <b>spelers</b> die elke ronde
+                      nieuwe teams loten (bijv. 4x4)
+                    </span>
+                  </label>
                 </div>
                 <div className="mt-8 flex justify-end gap-3">
                   <button className="btn-ghost" onClick={() => setStep(1)}>Terug</button>

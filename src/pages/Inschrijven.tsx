@@ -44,6 +44,10 @@ function Form({ t, isLocal }: { t: Tournament; isLocal: boolean }) {
   const [done, setDone] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // bij een individuele divisie schrijf je een spéler in, geen team
+  const chosenDiv = t.divisions.find((d) => d.id === divisionId) ?? t.divisions[0];
+  const indiv = !!chosenDiv?.individualMode;
+
   const submit = async () => {
     setBusy(true);
     setError(null);
@@ -97,7 +101,7 @@ function Form({ t, isLocal }: { t: Tournament; isLocal: boolean }) {
             <div className="mb-3 text-5xl">✅</div>
             <h2 className="text-xl font-bold">Inschrijving verstuurd!</h2>
             <p className="mt-2 text-sm text-slate-600">
-              De organisatie bekijkt je aanmelding van <b>{teamName}</b>
+              De organisatie bekijkt de aanmelding van <b>{teamName}</b>
               {email && (
                 <>
                   {" "}en gebruikt <b>{email}</b> om contact op te nemen
@@ -113,7 +117,7 @@ function Form({ t, isLocal }: { t: Tournament; isLocal: boolean }) {
                 setNote("");
               }}
             >
-              Nog een team inschrijven
+              {indiv ? "Nog een speler inschrijven" : "Nog een team inschrijven"}
             </button>
           </div>
         ) : !t.registrationOpen ? (
@@ -126,13 +130,13 @@ function Form({ t, isLocal }: { t: Tournament; isLocal: boolean }) {
           </div>
         ) : (
           <div className="card p-6">
-            <h2 className="text-lg font-bold">Schrijf je team in</h2>
+            <h2 className="text-lg font-bold">{indiv ? "Schrijf je in als speler" : "Schrijf je team in"}</h2>
             {t.registrationInfo && (
               <p className="mt-2 whitespace-pre-wrap text-sm text-slate-600">{t.registrationInfo}</p>
             )}
             <div className="mt-5 space-y-4">
               <div>
-                <label className="label">Teamnaam *</label>
+                <label className="label">{indiv ? "Naam speler *" : "Teamnaam *"}</label>
                 <input className="input" value={teamName} onChange={(e) => setTeamName(e.target.value)} autoFocus />
               </div>
               {t.divisions.length > 1 && (
@@ -145,10 +149,12 @@ function Form({ t, isLocal }: { t: Tournament; isLocal: boolean }) {
                   </select>
                 </div>
               )}
-              <div>
-                <label className="label">Contactpersoon</label>
-                <input className="input" value={contact} onChange={(e) => setContact(e.target.value)} />
-              </div>
+              {!indiv && (
+                <div>
+                  <label className="label">Contactpersoon</label>
+                  <input className="input" value={contact} onChange={(e) => setContact(e.target.value)} />
+                </div>
+              )}
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="label">E-mail</label>
