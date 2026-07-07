@@ -49,6 +49,50 @@ export function AdBlock({ t, slot = 0 }: { t: Tournament; slot?: number }) {
   );
 }
 
+/**
+ * Verticale reclame-boarding langs de dia's in presentatiemodus, als de
+ * reclameborden rond een stadionveld. Afgekocht: eigen sponsorlogo's
+ * gestapeld; anders een verticale huisadvertentie.
+ */
+export function Boarding({ t, side }: { t: Tournament; side: "left" | "right" }) {
+  const [i, setI] = useState(side === "left" ? 0 : 1);
+  const sponsors = t.presentation.sponsors.flatMap((b) => b.images);
+
+  useEffect(() => {
+    const id = setInterval(() => setI((x) => x + 1), 8000);
+    return () => clearInterval(id);
+  }, []);
+
+  if (t.presentation.adsRemoved && sponsors.length === 0) return null;
+
+  return (
+    <aside className="card flex w-24 shrink-0 flex-col items-center gap-3 overflow-hidden p-2 lg:w-28">
+      <span className="text-[9px] font-bold uppercase tracking-widest text-slate-400">
+        {t.presentation.adsRemoved ? "Sponsors" : "Reclame"}
+      </span>
+      {t.presentation.adsRemoved ? (
+        <div className="flex min-h-0 flex-1 flex-col items-center justify-around gap-3">
+          {Array.from({ length: Math.min(4, sponsors.length) }, (_, k) => {
+            const img = sponsors[(i + k) % sponsors.length];
+            return (
+              <a key={k} href={img.url || "#"} target="_blank" rel="noreferrer" className="min-h-0">
+                <img src={img.dataUrl} alt="Sponsor" className="max-h-24 w-full object-contain" />
+              </a>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="flex min-h-0 flex-1 flex-col items-center gap-3 py-2">
+          <span className="text-2xl">{HOUSE_ADS[i % HOUSE_ADS.length].emoji}</span>
+          <span className="min-h-0 flex-1 overflow-hidden text-center text-[11px] leading-snug text-slate-500 [writing-mode:vertical-rl]">
+            {HOUSE_ADS[i % HOUSE_ADS.length].text}
+          </span>
+        </div>
+      )}
+    </aside>
+  );
+}
+
 /** Gift-knop: bezoekers en organisatoren kunnen doneren om de app levend te houden. */
 export function DonateButton({ small = false }: { small?: boolean }) {
   return (

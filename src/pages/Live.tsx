@@ -9,7 +9,7 @@ import { addMinutes, scheduledMatches } from "../logic/schedule";
 import { activeStage, stageMatches } from "../logic/phases";
 import { copyText, decodeShare } from "../logic/share";
 import { useCloudTournament } from "../logic/cloud";
-import { AdBlock, DonateButton } from "../components/monetization";
+import { AdBlock, Boarding, DonateButton } from "../components/monetization";
 import { TeamBadge } from "../components/TeamBadge";
 import { Confetti, Trophy } from "../components/decor";
 import { VenueMapView } from "../components/VenueMap";
@@ -358,27 +358,33 @@ function LiveInner({
         );
         if (!slideshow) return <main className="mx-auto max-w-4xl space-y-8 px-4 py-8">{inhoud}</main>;
 
-        // tv-modus: één dia tegelijk (alleen de actieve fase), gevuld scherm
+        // tv-modus: één dia tegelijk (alleen de actieve fase), gevuld scherm,
+        // met smalle reclame-boardings langs de zijkanten zoals rond een veld
         const presDiv = t.divisions.find((dd) => dd.id === slide?.divId) ?? t.divisions[0];
+        const wide = slide?.page === "schema" || slide?.page === "plattegrond";
         return (
           <main className="min-h-0 w-full flex-1 overflow-hidden px-4 py-4">
-            <FitToScreen key={`${slide?.page}-${slide?.divId ?? ""}-${slide?.chunk ?? ""}`}>
-              <div className="mx-auto max-w-6xl space-y-6">
-                <AdBlock t={t} />
-                {slide?.page === "toernooi" && <ToernooiInfo t={t} />}
-                {slide?.page === "standen" && presDiv && (
-                  <>
-                    <ChampionBanner t={t} d={presDiv} />
-                    <Standen t={t} d={presDiv} myTeam={myTeam} onlyActive pouleChunk={slide.chunk} />
-                  </>
-                )}
-                {slide?.page === "schema" && <SchemaView t={t} myTeam={myTeam} pres />}
-                {slide?.page === "plattegrond" && (
-                  <VenueMapView t={t} highlightFieldId={pinnedField ?? nextFieldFor(t, myTeam)} />
-                )}
-                <AdBlock t={t} slot={1} />
+            <div className="flex h-full gap-4">
+              <Boarding t={t} side="left" />
+              <div className="min-w-0 flex-1">
+                <FitToScreen key={`${slide?.page}-${slide?.divId ?? ""}-${slide?.chunk ?? ""}`}>
+                  <div className={`mx-auto space-y-6 ${wide ? "" : "max-w-6xl"}`}>
+                    {slide?.page === "toernooi" && <ToernooiInfo t={t} />}
+                    {slide?.page === "standen" && presDiv && (
+                      <>
+                        <ChampionBanner t={t} d={presDiv} />
+                        <Standen t={t} d={presDiv} myTeam={myTeam} onlyActive pouleChunk={slide.chunk} />
+                      </>
+                    )}
+                    {slide?.page === "schema" && <SchemaView t={t} myTeam={myTeam} pres />}
+                    {slide?.page === "plattegrond" && (
+                      <VenueMapView t={t} highlightFieldId={pinnedField ?? nextFieldFor(t, myTeam)} />
+                    )}
+                  </div>
+                </FitToScreen>
               </div>
-            </FitToScreen>
+              <Boarding t={t} side="right" />
+            </div>
           </main>
         );
       })()}
