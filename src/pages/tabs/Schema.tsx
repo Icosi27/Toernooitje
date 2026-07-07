@@ -23,6 +23,7 @@ import type { Division, ScheduleEvent, Tournament } from "../../types";
 import { useApp } from "../../store";
 import { EmptyState, Modal, ModalActions } from "../../components/ui";
 import { addMinutes, autoSchedule, shiftSchedule } from "../../logic/schedule";
+import { splitField } from "../../logic/fields";
 import { allMatches, resolveSlot, slotLabel } from "../../logic/resolve";
 import { isPlayed } from "../../logic/standings";
 import { TeamBadge } from "../../components/TeamBadge";
@@ -489,6 +490,32 @@ export default function Schema() {
               <label className="label">Starttijd (optioneel, anders toernooistart {t.startTime})</label>
               <input type="time" className="input" value={fieldStart} onChange={(e) => setFieldStart(e.target.value)} />
             </div>
+            {fieldModal.id && (
+              <div className="rounded-lg bg-slate-50 p-3">
+                <div className="text-sm font-semibold">Veld splitsen</div>
+                <p className="mb-2 mt-1 text-xs text-slate-500">
+                  Deel dit veld op in losse speelveldjes — bijv. twee 7x7-helften of vier
+                  4x4-veldjes. Elk deel krijgt zijn eigen programmakolom; geplande wedstrijden
+                  blijven op deel A staan en de plattegrond wordt mee opgedeeld.
+                </p>
+                <div className="flex gap-2">
+                  {([2, 4] as const).map((n) => (
+                    <button
+                      key={n}
+                      className="btn-outline"
+                      onClick={() => {
+                        const id = fieldModal.id!;
+                        const naam = t.fields.find((f) => f.id === id)?.name ?? "veld";
+                        commit(`"${naam}" gesplitst in ${n} veldjes`, (x) => splitField(x, id, n));
+                        setFieldModal(null);
+                      }}
+                    >
+                      {n === 2 ? "In 2 (7x7)" : "In 4 (4x4)"}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
           <ModalActions
             onCancel={() => setFieldModal(null)}
