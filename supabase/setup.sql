@@ -24,9 +24,11 @@ create table if not exists public.scores (
   score_b int,
   pens_a int,
   pens_b int,
+  live boolean not null default false, -- wedstrijd bezig: score is live
   updated_at timestamptz not null default now(),
   primary key (tournament_id, match_id)
 );
+alter table public.scores add column if not exists live boolean not null default false;
 
 alter table public.tournaments enable row level security;
 alter table public.tournament_keys enable row level security;
@@ -71,7 +73,8 @@ $$;
 
 create or replace function public.submit_score(
   p_tid text, p_key text, p_match text,
-  p_a int, p_b int, p_pa int default null, p_pb int default null
+  p_a int, p_b int, p_pa int default null, p_pb int default null,
+  p_live boolean default false
 )
 returns void
 language plpgsql
@@ -81,11 +84,12 @@ begin
   if not exists (select 1 from tournament_keys where id = p_tid and write_key = p_key) then
     raise exception 'Ongeldige sleutel';
   end if;
-  insert into scores (tournament_id, match_id, score_a, score_b, pens_a, pens_b, updated_at)
-  values (p_tid, p_match, p_a, p_b, p_pa, p_pb, now())
+  insert into scores (tournament_id, match_id, score_a, score_b, pens_a, pens_b, live, updated_at)
+  values (p_tid, p_match, p_a, p_b, p_pa, p_pb, p_live, now())
   on conflict (tournament_id, match_id) do update
     set score_a = excluded.score_a, score_b = excluded.score_b,
-        pens_a = excluded.pens_a, pens_b = excluded.pens_b, updated_at = now();
+        pens_a = excluded.pens_a, pens_b = excluded.pens_b,
+        live = excluded.live, updated_at = now();
 end;
 $$;
 

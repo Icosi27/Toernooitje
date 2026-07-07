@@ -527,6 +527,12 @@ export default function Deelnemers() {
                   const divName = t.divisions.find((d) => d.id === r.divisionId)?.name;
                   return (
                     <div key={r.id} className="flex flex-wrap items-center gap-3 px-4 py-3">
+                      {(r.logo || r.shirtColor) && (
+                        <span className="flex shrink-0 items-center gap-1" title="Door het team doorgegeven logo/tenue">
+                          {r.logo && <img src={r.logo} alt="" className="h-7 w-7 rounded object-contain" />}
+                          {r.shirtColor && <KitIcon shirt={r.shirtColor} shorts={r.shortsColor} size={24} />}
+                        </span>
+                      )}
                       <div className="min-w-0 flex-1">
                         <div className="font-medium">
                           {r.teamName}
@@ -557,6 +563,9 @@ export default function Deelnemers() {
                                     id: uid(),
                                     name: reg.teamName,
                                     email: reg.email,
+                                    shirtColor: reg.shirtColor,
+                                    shortsColor: reg.shortsColor,
+                                    logo: reg.logo,
                                     players: [],
                                   });
                                 }

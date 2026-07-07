@@ -73,6 +73,7 @@ export interface ScoreRow {
   score_b: number | null;
   pens_a: number | null;
   pens_b: number | null;
+  live?: boolean | null;
 }
 
 /** Zet het toernooi online (of werk de online versie bij). De writeKey blijft geheim. */
@@ -96,7 +97,8 @@ export async function submitScore(
   a: number | null,
   b: number | null,
   pa: number | null = null,
-  pb: number | null = null
+  pb: number | null = null,
+  live = false
 ): Promise<void> {
   const { error } = await sb.rpc("submit_score", {
     p_tid: tid,
@@ -106,6 +108,7 @@ export async function submitScore(
     p_b: b,
     p_pa: pa,
     p_pb: pb,
+    p_live: live,
   });
   if (error) throw new Error(error.message);
 }
@@ -131,7 +134,8 @@ export function pushScore(tournamentId: string, matchId: string): void {
         m.scoreA ?? null,
         m.scoreB ?? null,
         m.pensA ?? null,
-        m.pensB ?? null
+        m.pensB ?? null,
+        m.inProgress ?? false
       ).catch(() => {});
       return;
     }
@@ -221,7 +225,7 @@ export async function fetchCloudTournament(
 ): Promise<Tournament | null> {
   const [tRes, sRes] = await Promise.all([
     sb.from("tournaments").select("data").eq("id", id).maybeSingle(),
-    sb.from("scores").select("match_id, score_a, score_b, pens_a, pens_b").eq("tournament_id", id),
+    sb.from("scores").select("match_id, score_a, score_b, pens_a, pens_b, live").eq("tournament_id", id),
   ]);
   if (tRes.error || !tRes.data) return null;
   const t = tRes.data.data as Tournament;
@@ -241,6 +245,7 @@ export function applyScores(t: Tournament, rows: ScoreRow[]): void {
       m.scoreB = r.score_b ?? undefined;
       m.pensA = r.pens_a ?? undefined;
       m.pensB = r.pens_b ?? undefined;
+      m.inProgress = r.live ? true : undefined;
     }
   }
 }

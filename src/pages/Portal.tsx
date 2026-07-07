@@ -27,13 +27,14 @@ export default function Portal() {
 
 function LocalPortal({ t, refId }: { t: Tournament; refId?: string }) {
   const update = useApp((s) => s.updateTournament);
-  const save = (matchId: string, a: number | undefined, b: number | undefined) => {
+  const save = (matchId: string, a: number | undefined, b: number | undefined, live: boolean) => {
     update(t.id, (x) => {
       for (const d of x.divisions) {
         const m = allMatches(d).find((y) => y.id === matchId);
         if (m) {
           m.scoreA = a;
           m.scoreB = b;
+          m.inProgress = live || undefined;
         }
       }
     });
@@ -47,7 +48,7 @@ function CloudPortal({ id, refId }: { id?: string; refId?: string }) {
   const writeKey = params.get("k");
   const { t, loading, error, refresh } = useCloudTournament(id, params.get("s"), params.get("a"));
   // opgeslagen waarden over de serverdata heen leggen tot de refresh ze bevestigt
-  const [pending, setPending] = useState<Record<string, { a?: number; b?: number }>>({});
+  const [pending, setPending] = useState<Record<string, { a?: number; b?: number; live?: boolean }>>({});
   const [status, setStatus] = useState<Record<string, SaveState>>({});
 
   if (loading) return <div className="p-10 text-center text-slate-500">Laden…</div>;
@@ -71,19 +72,20 @@ function CloudPortal({ id, refId }: { id?: string; refId?: string }) {
       if (p) {
         if ("a" in p) m.scoreA = p.a;
         if ("b" in p) m.scoreB = p.b;
+        if ("live" in p) m.inProgress = p.live || undefined;
       }
     }
   }
 
-  const save = (matchId: string, a: number | undefined, b: number | undefined) => {
-    setPending((prev) => ({ ...prev, [matchId]: { a, b } }));
+  const save = (matchId: string, a: number | undefined, b: number | undefined, live: boolean) => {
+    setPending((prev) => ({ ...prev, [matchId]: { a, b, live } }));
     setStatus((s) => ({ ...s, [matchId]: "saving" }));
     const sb = clientFromParams(null, null);
     if (!sb) {
       setStatus((s) => ({ ...s, [matchId]: "error" }));
       return;
     }
-    submitScore(sb, t.id, writeKey, matchId, a ?? null, b ?? null)
+    submitScore(sb, t.id, writeKey, matchId, a ?? null, b ?? null, null, null, live)
       .then(() => {
         setStatus((s) => ({ ...s, [matchId]: "saved" }));
         refresh();

@@ -58,7 +58,7 @@ function useCloudSync(t: Tournament | undefined): { error: boolean; lastSync: st
     const load = async () => {
       const { data } = await sb
         .from("scores")
-        .select("match_id, score_a, score_b, pens_a, pens_b")
+        .select("match_id, score_a, score_b, pens_a, pens_b, live")
         .eq("tournament_id", id);
       if (!data || data.length === 0) return;
       update(id, (x) => applyScores(x, data as ScoreRow[]));

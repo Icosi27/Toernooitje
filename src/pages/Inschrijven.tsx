@@ -5,7 +5,9 @@ import type { Registration, Tournament } from "../types";
 import { clientFromParams, useCloudTournament } from "../logic/cloud";
 import { submitRegistration } from "../logic/cloud";
 import { uid } from "../logic/id";
+import { fileToDataUrl } from "../logic/files";
 import { DonateButton } from "../components/monetization";
+import { KitIcon } from "../components/TeamBadge";
 import { Confetti, Trophy } from "../components/decor";
 
 /**
@@ -41,6 +43,10 @@ function Form({ t, isLocal }: { t: Tournament; isLocal: boolean }) {
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [note, setNote] = useState("");
+  const [showKit, setShowKit] = useState(false);
+  const [shirtColor, setShirtColor] = useState("#e11d48");
+  const [shortsColor, setShortsColor] = useState("#ffffff");
+  const [logo, setLogo] = useState<string | undefined>(undefined);
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -60,6 +66,9 @@ function Form({ t, isLocal }: { t: Tournament; isLocal: boolean }) {
       email: email.trim() || undefined,
       phone: phone.trim() || undefined,
       note: note.trim() || undefined,
+      shirtColor: !indiv && showKit ? shirtColor : undefined,
+      shortsColor: !indiv && showKit ? shortsColor : undefined,
+      logo: !indiv ? logo : undefined,
       status: "nieuw",
       createdAt: new Date().toISOString(),
     };
@@ -177,6 +186,67 @@ function Form({ t, isLocal }: { t: Tournament; isLocal: boolean }) {
                   onChange={(e) => setNote(e.target.value)}
                 />
               </div>
+              {!indiv && (
+                <div className="rounded-lg border border-slate-200 p-3">
+                  <div className="flex flex-wrap items-center gap-3">
+                    <span className="text-sm font-semibold">🎽 Clubkleuren & logo</span>
+                    <span className="text-xs text-slate-500">optioneel — zichtbaar in het programma</span>
+                  </div>
+                  <div className="mt-3 flex flex-wrap items-center gap-4">
+                    {showKit ? (
+                      <>
+                        <KitIcon shirt={shirtColor} shorts={shortsColor} size={44} />
+                        <label className="flex items-center gap-2 text-xs text-slate-600">
+                          Shirt
+                          <input
+                            type="color"
+                            className="h-8 w-10 cursor-pointer"
+                            value={shirtColor}
+                            onChange={(e) => setShirtColor(e.target.value)}
+                          />
+                        </label>
+                        <label className="flex items-center gap-2 text-xs text-slate-600">
+                          Broekje
+                          <input
+                            type="color"
+                            className="h-8 w-10 cursor-pointer"
+                            value={shortsColor}
+                            onChange={(e) => setShortsColor(e.target.value)}
+                          />
+                        </label>
+                        <button className="text-xs text-slate-400 underline" onClick={() => setShowKit(false)}>
+                          zonder kleuren
+                        </button>
+                      </>
+                    ) : (
+                      <button className="btn-outline px-3 py-1.5 text-xs" onClick={() => setShowKit(true)}>
+                        + Tenue-kleuren kiezen
+                      </button>
+                    )}
+                    <label className="btn-outline cursor-pointer px-3 py-1.5 text-xs">
+                      {logo ? "Ander logo…" : "+ Logo uploaden"}
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={async (e) => {
+                          const f = e.target.files?.[0];
+                          if (f) setLogo(await fileToDataUrl(f, 128));
+                          e.target.value = "";
+                        }}
+                      />
+                    </label>
+                    {logo && (
+                      <span className="flex items-center gap-1">
+                        <img src={logo} alt="logo" className="h-9 w-9 rounded object-contain" />
+                        <button className="text-xs text-slate-400 underline" onClick={() => setLogo(undefined)}>
+                          weg
+                        </button>
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
               {error && <p className="text-sm text-red-600">{error}</p>}
               <button className="btn-primary w-full" disabled={!teamName.trim() || busy} onClick={submit}>
                 {busy ? "Versturen…" : "Inschrijven"}

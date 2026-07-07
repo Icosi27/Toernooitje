@@ -85,6 +85,8 @@ export interface Match {
   refereeId?: ID;
   /** bij "teams als scheidsrechters": het team dat deze wedstrijd fluit */
   refereeTeamId?: ID;
+  /** wedstrijd is bezig: score is live, maar telt pas mee na de eindstand */
+  inProgress?: boolean;
   label?: string; // b.v. "Halve finale 1"
   round?: number; // speelronde binnen poule of KO-ronde
 }
@@ -205,6 +207,10 @@ export interface Registration {
   email?: string;
   phone?: string;
   note?: string;
+  /** door het team zelf doorgegeven tenue en logo; bij accepteren overgenomen */
+  shirtColor?: string;
+  shortsColor?: string;
+  logo?: string; // dataURL, verkleind
   status: "nieuw" | "geaccepteerd" | "afgewezen";
   createdAt: string;
 }
@@ -239,6 +245,8 @@ export interface Tournament {
   teamFields?: { present: boolean; paid: boolean; email: boolean };
   /** teams fluiten elkaars wedstrijden i.p.v. vaste scheidsrechters */
   teamsAsReferees?: boolean;
+  /** scheidsrechters scoren live (doelpunt voor doelpunt) i.p.v. achteraf */
+  liveScoring?: boolean;
   /** plattegrond van het sportpark (kantine, kleedkamers, velden) */
   venueMap?: VenueMap;
   /** eventblokken (pauzes, prijsuitreiking) in het speelschema */

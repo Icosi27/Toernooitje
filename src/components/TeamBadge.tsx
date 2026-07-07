@@ -31,23 +31,26 @@ export function KitIcon({
 }
 
 /**
- * Team-embleem voor in lijsten en standen: het logo als dat er is, anders het
- * tenue in de clubkleuren, anders niets.
+ * Team-embleem voor in lijsten, standen en het programma: logo én tenue in de
+ * clubkleuren naast elkaar, voor zover ingevuld; anders niets.
  */
 export function TeamBadge({ team, size = 20 }: { team?: Team | null; size?: number }) {
   if (!team) return null;
-  if (team.logo)
-    return (
-      <img
-        src={team.logo}
-        alt=""
-        width={size}
-        height={size}
-        className="shrink-0 rounded-sm object-contain"
-        style={{ width: size, height: size }}
-      />
-    );
-  if (team.shirtColor || team.shortsColor)
-    return <KitIcon shirt={team.shirtColor} shorts={team.shortsColor} size={size} />;
-  return null;
+  const kit = team.shirtColor || team.shortsColor;
+  if (!team.logo && !kit) return null;
+  return (
+    <span className="inline-flex shrink-0 items-center gap-0.5 align-middle">
+      {team.logo && (
+        <img
+          src={team.logo}
+          alt=""
+          width={size}
+          height={size}
+          className="shrink-0 rounded-sm object-contain"
+          style={{ width: size, height: size }}
+        />
+      )}
+      {kit && <KitIcon shirt={team.shirtColor} shorts={team.shortsColor} size={size} />}
+    </span>
+  );
 }

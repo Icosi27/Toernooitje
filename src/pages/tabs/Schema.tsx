@@ -24,8 +24,9 @@ import { useApp } from "../../store";
 import { EmptyState, Modal, ModalActions, Section } from "../../components/ui";
 import { VenueMapEditor } from "../../components/VenueMap";
 import { addMinutes, autoSchedule, shiftSchedule } from "../../logic/schedule";
-import { allMatches, slotLabel } from "../../logic/resolve";
+import { allMatches, resolveSlot, slotLabel } from "../../logic/resolve";
 import { isPlayed } from "../../logic/standings";
+import { TeamBadge } from "../../components/TeamBadge";
 import {
   addEvent,
   blockMinutes,
@@ -758,9 +759,12 @@ function MatchBody(props: {
         {props.lineup ? (
           <span className="text-xs">{props.lineup.a} — {props.lineup.b}</span>
         ) : (
-          <>
-            {slotLabel(m.a, d, t.scoring)} — {slotLabel(m.b, d, t.scoring)}
-          </>
+          <span className="inline-flex flex-wrap items-center gap-1">
+            <TeamBadge team={resolveSlot(m.a, d, t.scoring)} size={15} />
+            {slotLabel(m.a, d, t.scoring)} —{" "}
+            <TeamBadge team={resolveSlot(m.b, d, t.scoring)} size={15} />
+            {slotLabel(m.b, d, t.scoring)}
+          </span>
         )}
         {props.played && (
           <span className="score ml-2 text-slate-500">

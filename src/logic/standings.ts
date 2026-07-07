@@ -25,7 +25,9 @@ const emptyRow = (teamId: ID): StandingRow => ({
 });
 
 export function isPlayed(m: Match): boolean {
-  return m.scoreA !== undefined && m.scoreB !== undefined;
+  // een live-wedstrijd heeft al een score, maar telt pas mee (standen,
+  // fase-voortgang, doorstroming) zodra de eindstand is opgeslagen
+  return m.scoreA !== undefined && m.scoreB !== undefined && !m.inProgress;
 }
 
 /** Berekent de stand van een poule met configureerbare tiebreak-criteria. */

@@ -682,8 +682,11 @@ function SchemaView({
                   )}
                 </td>
                 <td className="px-3 py-2">
-                  <span className={mine ? "font-semibold" : ""}>
-                    {slotLabel(m.a, d, t.scoring)} — {slotLabel(m.b, d, t.scoring)}
+                  <span className={`inline-flex flex-wrap items-center gap-1 ${mine ? "font-semibold" : ""}`}>
+                    <TeamBadge team={resolveSlot(m.a, d, t.scoring)} size={16} />
+                    {slotLabel(m.a, d, t.scoring)} —{" "}
+                    <TeamBadge team={resolveSlot(m.b, d, t.scoring)} size={16} />
+                    {slotLabel(m.b, d, t.scoring)}
                   </span>
                   {m.label && <span className="ml-2 text-xs text-slate-400">{m.label}</span>}
                   {busy.has(m.id) && (
