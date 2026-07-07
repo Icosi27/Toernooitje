@@ -49,6 +49,12 @@ as $$
 declare
   existing text;
 begin
+  -- reclamestatus wordt server-side bepaald door de betaling, niet door de client
+  p_data := jsonb_set(
+    p_data,
+    '{presentation,adsRemoved}',
+    to_jsonb(exists (select 1 from ad_buyouts b where b.tournament_id = p_id))
+  );
   select write_key into existing from tournament_keys where id = p_id;
   if existing is null then
     insert into tournaments (id, data, updated_at) values (p_id, p_data, now())
@@ -157,6 +163,28 @@ begin
   update registrations set status = p_status where id = p_rid and tournament_id = p_tid;
 end;
 $$;
+
+-- Betalingen (reclame afkopen via Mollie). De payments-tabel is intern
+-- (alleen Edge Functions met service-role); ad_buyouts is publiek leesbaar
+-- zodat de app kan tonen dat een toernooi reclamevrij is.
+create table if not exists public.payments (
+  id text primary key, -- Mollie payment id (tr_...)
+  tournament_id text not null,
+  status text not null default 'open',
+  amount numeric,
+  created_at timestamptz not null default now()
+);
+alter table public.payments enable row level security;
+
+create table if not exists public.ad_buyouts (
+  tournament_id text primary key references public.tournaments(id) on delete cascade,
+  payment_id text,
+  amount numeric,
+  paid_at timestamptz not null default now()
+);
+alter table public.ad_buyouts enable row level security;
+drop policy if exists "publiek lezen" on public.ad_buyouts;
+create policy "publiek lezen" on public.ad_buyouts for select using (true);
 
 -- Koppeling account <-> toernooien: ingelogde organisatoren bewaren hier hun
 -- volledige toernooien (incl. schrijfsleutel) zodat ze op elk apparaat verder

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useOutletContext } from "react-router-dom";
 import type { Tournament } from "../../types";
 import { useApp } from "../../store";
@@ -6,6 +6,7 @@ import { Section, Toggle } from "../../components/ui";
 import { DONATE_URL } from "../../components/monetization";
 import { appUrl, copyText, encodeShare } from "../../logic/share";
 import { effectiveConfig, publishTournament, setCloudConfig } from "../../logic/cloud";
+import { AD_BUYOUT_PRICE, isAdFree, startAdBuyout } from "../../logic/payments";
 import { fileToDataUrl } from "../../logic/files";
 import { uid } from "../../logic/id";
 
@@ -147,6 +148,98 @@ function CloudSharing({
   );
 }
 
+/**
+ * Reclame afkopen via Mollie/iDEAL. De server (ad_buyouts + webhook) is de
+ * waarheid: na terugkeer van de betaalpagina pollen we tot de betaling
+ * bevestigd is en zetten dan pas de lokale vlag.
+ */
+function AdBuyout({ t }: { t: Tournament }) {
+  const update = useApp((s) => s.updateTournament);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [checking, setChecking] = useState(false);
+  const paid = !!t.presentation.adsRemoved;
+  const online = !!t.cloud?.online;
+
+  // bij binnenkomst (en na terugkeer van Mollie): status bij de server checken
+  useEffect(() => {
+    if (paid || !online) return;
+    let alive = true;
+    let tries = 0;
+    setChecking(true);
+    const check = async () => {
+      tries++;
+      const free = await isAdFree(t.id);
+      if (!alive) return;
+      if (free) {
+        update(t.id, (x) => (x.presentation.adsRemoved = true));
+        setChecking(false);
+      } else if (tries >= 20) {
+        // ~1,5 minuut gepolst; daarna alleen nog handmatig verversen
+        setChecking(false);
+        clearInterval(iv);
+      }
+    };
+    check();
+    const iv = setInterval(check, 5000);
+    return () => {
+      alive = false;
+      clearInterval(iv);
+    };
+  }, [t.id, paid, online]);
+
+  const pay = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const url = await startAdBuyout(t.id, appUrl(`/t/${t.id}/presentatie`));
+      window.location.href = url; // naar de Mollie-betaalpagina (iDEAL)
+    } catch (e) {
+      setError(String((e as Error).message ?? e));
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="card mb-4 p-4">
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <div className="font-semibold">
+            Reclame afkopen{" "}
+            {paid ? (
+              <span className="ml-1 rounded bg-green-100 px-2 py-0.5 text-xs text-green-700">✓ Afgekocht</span>
+            ) : (
+              <span className="ml-1 rounded bg-amber-100 px-2 py-0.5 text-xs text-amber-700">
+                {AD_BUYOUT_PRICE} eenmalig · iDEAL
+              </span>
+            )}
+          </div>
+          <p className="mt-1 text-xs text-slate-500">
+            {paid
+              ? "Dit toernooi is reclamevrij: op de publieke pagina's staan alleen jouw eigen sponsorblokken. Bedankt voor je steun!"
+              : "Zonder afkoop tonen we bescheiden advertenties op de publieke pagina's om de app draaiende te houden. Na afkoop verschijnen daar jouw eigen sponsorblokken."}
+          </p>
+        </div>
+        {!paid && (
+          <button className="btn-primary shrink-0" disabled={busy || !online} onClick={pay}>
+            {busy ? "Bezig…" : `Afkopen (${AD_BUYOUT_PRICE})`}
+          </button>
+        )}
+      </div>
+      {!paid && !online && (
+        <p className="mt-2 text-xs text-amber-700">
+          Zet je toernooi eerst live (hierboven bij Delen) — de afkoop wordt aan het online toernooi
+          gekoppeld.
+        </p>
+      )}
+      {!paid && checking && (
+        <p className="mt-2 text-xs text-slate-400">↻ Betaalstatus wordt gecontroleerd…</p>
+      )}
+      {error && <p className="mt-2 text-xs text-red-600">{error}</p>}
+    </div>
+  );
+}
+
 export default function Presentatie() {
   const t = useOutletContext<Tournament>();
   const update = useApp((s) => s.updateTournament);
@@ -260,38 +353,7 @@ export default function Presentatie() {
         subtitle="Toernooitje is gratis dankzij advertenties. Koop ze af en toon je eigen sponsoren."
         defaultOpen
       >
-        <div className="card mb-4 flex items-center justify-between gap-4 p-4">
-          <div>
-            <div className="font-semibold">
-              Reclame afkopen{" "}
-              {p.adsRemoved ? (
-                <span className="ml-1 rounded bg-green-100 px-2 py-0.5 text-xs text-green-700">Afgekocht</span>
-              ) : (
-                <span className="ml-1 rounded bg-amber-100 px-2 py-0.5 text-xs text-amber-700">€ 10 per toernooi</span>
-              )}
-            </div>
-            <p className="mt-1 text-xs text-slate-500">
-              Zonder afkoop tonen we bescheiden advertenties op de publieke pagina's om de app
-              draaiende te houden. Na afkoop verschijnen daar jouw eigen sponsorblokken.
-            </p>
-          </div>
-          {p.adsRemoved ? (
-            <button className="btn-outline shrink-0" onClick={() => u((x) => (x.presentation.adsRemoved = false))}>
-              Ongedaan maken
-            </button>
-          ) : (
-            <button
-              className="btn-primary shrink-0"
-              onClick={() => {
-                // hier komt later de echte betaalprovider (bijv. Mollie/Stripe)
-                if (confirm("Demo: reclame afkopen voor dit toernooi? (Er wordt nu niets afgerekend.)"))
-                  u((x) => (x.presentation.adsRemoved = true));
-              }}
-            >
-              Afkopen
-            </button>
-          )}
-        </div>
+        <AdBuyout t={t} />
 
         <p className="mb-2 text-sm font-semibold">Sponsorblokken</p>
         <p className="mb-3 text-xs text-slate-500">

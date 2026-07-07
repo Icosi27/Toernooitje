@@ -51,6 +51,35 @@ De app zelf wordt via GitHub Actions automatisch op **GitHub Pages** gezet
 (Settings → Pages → Source: *GitHub Actions* eenmalig aanzetten), zodat de
 links op elke telefoon werken.
 
+## Betaalkoppeling: reclame afkopen (Mollie/iDEAL)
+
+Organisatoren kunnen de advertenties per toernooi afkopen (€ 10, eenmalig).
+De betaalstatus wordt **server-side afgedwongen**: `publish_tournament`
+overschrijft de reclamevlag altijd met wat er betaald is.
+
+Eenmalige installatie:
+
+1. Maak een gratis account op [mollie.com](https://www.mollie.com) en kopieer
+   je **API-sleutel** (test- of live-key).
+2. Draai `supabase/setup.sql` (opnieuw) in de SQL Editor — dit maakt de
+   tabellen `payments` en `ad_buyouts` aan.
+3. Installeer de [Supabase CLI](https://supabase.com/docs/guides/cli) en deploy
+   de betaalfuncties:
+
+   ```bash
+   supabase login
+   supabase link --project-ref rwiztgedifbttwdbevpw
+   supabase secrets set MOLLIE_API_KEY=live_of_test_sleutel
+   supabase functions deploy create-payment --no-verify-jwt
+   supabase functions deploy payment-webhook --no-verify-jwt
+   ```
+
+Flow: app → `create-payment` (maakt Mollie-betaling, sleutel blijft
+server-side) → gebruiker rekent af via iDEAL → Mollie roept
+`payment-webhook` aan → status wordt bij Mollie geverifieerd → `ad_buyouts`
+gevuld → de app ziet de bevestiging en het toernooi is reclamevrij.
+Met een **test**-sleutel kun je de hele flow doorlopen zonder echt geld.
+
 ## Ontwikkelen
 
 ```bash
