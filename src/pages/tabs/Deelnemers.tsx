@@ -4,10 +4,10 @@ import type { Tournament } from "../../types";
 import { useApp } from "../../store";
 import { EmptyState, Modal, ModalActions, Toggle } from "../../components/ui";
 import { appUrl, copyText } from "../../logic/share";
-import { liveQuery } from "../../logic/cloud";
+import { decideRegistration, liveQuery } from "../../logic/cloud";
 import { uid } from "../../logic/id";
 
-type Tab = "teams" | "scheidsrechters" | "beheerders";
+type Tab = "teams" | "scheidsrechters" | "beheerders" | "inschrijvingen";
 
 export default function Deelnemers() {
   const t = useOutletContext<Tournament>();
@@ -47,7 +47,7 @@ export default function Deelnemers() {
   return (
     <div className="mx-auto max-w-3xl">
       <div className="card mb-6 flex overflow-hidden">
-        {(["teams", "scheidsrechters", "beheerders"] as Tab[]).map((k) => (
+        {(["teams", "scheidsrechters", "beheerders", "inschrijvingen"] as Tab[]).map((k) => (
           <button
             key={k}
             onClick={() => setTab(k)}
@@ -57,6 +57,12 @@ export default function Deelnemers() {
             style={tab === k ? { borderColor: "var(--accent)", color: "var(--accent)" } : undefined}
           >
             {k}
+            {k === "inschrijvingen" &&
+              (t.registrations ?? []).filter((r) => r.status === "nieuw").length > 0 && (
+                <span className="ml-1 rounded-full bg-red-500 px-1.5 text-xs text-white">
+                  {(t.registrations ?? []).filter((r) => r.status === "nieuw").length}
+                </span>
+              )}
           </button>
         ))}
       </div>
@@ -278,6 +284,124 @@ export default function Deelnemers() {
               </div>
               <button className="btn-primary mt-4" onClick={() => setModal("admin")}>Beheerder toevoegen</button>
             </>
+          )}
+        </>
+      )}
+
+      {tab === "inschrijvingen" && (
+        <>
+          <div className="card mb-4 flex items-center justify-between gap-4 p-4">
+            <div>
+              <div className="font-semibold">Online inschrijfpagina</div>
+              <p className="mt-1 text-xs text-slate-500">
+                Teams schrijven zichzelf in via een link; jij accepteert ze hier en ze worden
+                automatisch als team toegevoegd.
+                {!t.cloud?.online &&
+                  " Zet het toernooi live (Presentatie → Delen) zodat de link ook op andere telefoons werkt."}
+              </p>
+            </div>
+            <div className="flex shrink-0 items-center gap-3">
+              <Toggle
+                checked={!!t.registrationOpen}
+                onChange={(v) => u((x) => (x.registrationOpen = v))}
+                label={t.registrationOpen ? "Open" : "Gesloten"}
+              />
+              <button
+                className="btn-primary"
+                disabled={!t.registrationOpen}
+                onClick={() => copy("reglink", appUrl(`/inschrijven/${t.id}${liveQuery(t, false)}`))}
+              >
+                {copied === "reglink" ? "✓ Gekopieerd" : "Kopieer inschrijflink"}
+              </button>
+            </div>
+          </div>
+
+          <div className="card mb-6 p-4">
+            <label className="label">Tekst bovenaan het inschrijfformulier (optioneel)</label>
+            <textarea
+              className="input h-16 resize-none rounded border border-slate-200 p-2"
+              placeholder="Bijv.: Inschrijven kan tot 1 augustus. Deelname kost € 25 per team."
+              value={t.registrationInfo ?? ""}
+              onChange={(e) => u((x) => (x.registrationInfo = e.target.value))}
+            />
+          </div>
+
+          {(t.registrations ?? []).length === 0 ? (
+            <EmptyState
+              icon="📝"
+              title="Nog geen inschrijvingen"
+              subtitle="Deel de inschrijflink; aanmeldingen verschijnen hier vanzelf."
+            />
+          ) : (
+            <div className="card divide-y divide-slate-100">
+              {(t.registrations ?? [])
+                .slice()
+                .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+                .map((r) => {
+                  const divName = t.divisions.find((d) => d.id === r.divisionId)?.name;
+                  return (
+                    <div key={r.id} className="flex flex-wrap items-center gap-3 px-4 py-3">
+                      <div className="min-w-0 flex-1">
+                        <div className="font-medium">
+                          {r.teamName}
+                          {divName && <span className="ml-2 text-xs text-slate-400">{divName}</span>}
+                        </div>
+                        <div className="text-xs text-slate-500">
+                          {[r.contact, r.email, r.phone].filter(Boolean).join(" · ") || "geen contactgegevens"}
+                          {" · "}
+                          {new Date(r.createdAt).toLocaleDateString("nl-NL")}
+                        </div>
+                        {r.note && <div className="mt-1 text-xs italic text-slate-500">"{r.note}"</div>}
+                      </div>
+                      {r.status === "nieuw" ? (
+                        <div className="flex gap-2">
+                          <button
+                            className="btn-primary"
+                            onClick={() => {
+                              u((x) => {
+                                const reg = (x.registrations ?? []).find((y) => y.id === r.id);
+                                if (!reg) return;
+                                reg.status = "geaccepteerd";
+                                const d =
+                                  x.divisions.find((dd) => dd.id === reg.divisionId) ?? x.divisions[0];
+                                d.teams.push({
+                                  id: uid(),
+                                  name: reg.teamName,
+                                  email: reg.email,
+                                  players: [],
+                                });
+                              });
+                              decideRegistration(t.id, r.id, "geaccepteerd");
+                            }}
+                          >
+                            Accepteer
+                          </button>
+                          <button
+                            className="btn-ghost text-red-500"
+                            onClick={() => {
+                              u((x) => {
+                                const reg = (x.registrations ?? []).find((y) => y.id === r.id);
+                                if (reg) reg.status = "afgewezen";
+                              });
+                              decideRegistration(t.id, r.id, "afgewezen");
+                            }}
+                          >
+                            Wijs af
+                          </button>
+                        </div>
+                      ) : r.status === "geaccepteerd" ? (
+                        <span className="rounded bg-green-100 px-2 py-0.5 text-xs text-green-700">
+                          ✓ Geaccepteerd
+                        </span>
+                      ) : (
+                        <span className="rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-500">
+                          Afgewezen
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
+            </div>
           )}
         </>
       )}

@@ -156,6 +156,18 @@ export interface Presentation {
   slideSeconds: number;
 }
 
+export interface Registration {
+  id: ID;
+  divisionId?: ID;
+  teamName: string;
+  contact?: string;
+  email?: string;
+  phone?: string;
+  note?: string;
+  status: "nieuw" | "geaccepteerd" | "afgewezen";
+  createdAt: string;
+}
+
 export interface Tournament {
   id: ID;
   name: string;
@@ -182,6 +194,10 @@ export interface Tournament {
   presentation: Presentation;
   /** online synchronisatie (Supabase); writeKey blijft op het apparaat van de organisator */
   cloud?: { online: boolean; writeKey: string };
+  /** online inschrijfpagina voor teams */
+  registrationOpen?: boolean;
+  registrationInfo?: string;
+  registrations?: Registration[];
 }
 
 export const defaultScoring = (): ScoringConfig => ({

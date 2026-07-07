@@ -2,7 +2,14 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, NavLink, Outlet, useNavigate, useParams } from "react-router-dom";
 import { useApp, useTournament } from "../store";
 import type { Tournament } from "../types";
-import { applyScores, getClient, publishTournament, subscribeScores, type ScoreRow } from "../logic/cloud";
+import {
+  applyScores,
+  getClient,
+  listRegistrations,
+  publishTournament,
+  subscribeScores,
+  type ScoreRow,
+} from "../logic/cloud";
 import { DonateButton } from "../components/monetization";
 
 /**
@@ -52,6 +59,33 @@ function useCloudSync(t: Tournament | undefined) {
     };
     load();
     return subscribeScores(sb, id, load);
+  }, [t?.id, online]);
+
+  // online inschrijvingen binnenhalen (elke 30s; nieuwe komen erbij,
+  // lokale beslissingen blijven staan)
+  useEffect(() => {
+    if (!online || !t?.cloud) return;
+    const sb = getClient();
+    if (!sb) return;
+    const id = t.id;
+    const key = t.cloud.writeKey;
+    const load = async () => {
+      try {
+        const rows = await listRegistrations(sb, id, key);
+        if (rows.length === 0) return;
+        update(id, (x) => {
+          const seen = new Set((x.registrations ?? []).map((r) => r.id));
+          for (const row of rows) {
+            if (!seen.has(row.id)) (x.registrations ??= []).push(row);
+          }
+        });
+      } catch {
+        // sleutel/verbinding fout: stil laten, volgende poging over 30s
+      }
+    };
+    load();
+    const iv = setInterval(load, 30000);
+    return () => clearInterval(iv);
   }, [t?.id, online]);
 
   return syncError;

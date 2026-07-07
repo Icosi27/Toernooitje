@@ -95,6 +95,69 @@ begin
 end;
 $$;
 
+-- Online inschrijvingen. Geen select-policy: e-mailadressen zijn niet
+-- publiek; de organisator leest ze via list_registrations met zijn sleutel.
+create table if not exists public.registrations (
+  id text primary key,
+  tournament_id text not null references public.tournaments(id) on delete cascade,
+  division_id text,
+  team_name text not null,
+  contact text,
+  email text,
+  phone text,
+  note text,
+  status text not null default 'nieuw',
+  created_at timestamptz not null default now()
+);
+alter table public.registrations enable row level security;
+
+create or replace function public.submit_registration(
+  p_id text, p_tid text, p_division text, p_team text,
+  p_contact text, p_email text, p_phone text, p_note text
+)
+returns void
+language plpgsql
+security definer set search_path = public
+as $$
+begin
+  if coalesce((select data->>'registrationOpen' from tournaments where id = p_tid), 'false') <> 'true' then
+    raise exception 'De inschrijving is gesloten';
+  end if;
+  if (select count(*) from registrations where tournament_id = p_tid) >= 500 then
+    raise exception 'Maximum aantal inschrijvingen bereikt';
+  end if;
+  insert into registrations (id, tournament_id, division_id, team_name, contact, email, phone, note)
+  values (p_id, p_tid, p_division, p_team, p_contact, p_email, p_phone, p_note)
+  on conflict (id) do nothing;
+end;
+$$;
+
+create or replace function public.list_registrations(p_tid text, p_key text)
+returns setof public.registrations
+language plpgsql
+security definer set search_path = public
+as $$
+begin
+  if not exists (select 1 from tournament_keys where id = p_tid and write_key = p_key) then
+    raise exception 'Ongeldige sleutel';
+  end if;
+  return query select * from registrations where tournament_id = p_tid order by created_at;
+end;
+$$;
+
+create or replace function public.decide_registration(p_tid text, p_key text, p_rid text, p_status text)
+returns void
+language plpgsql
+security definer set search_path = public
+as $$
+begin
+  if not exists (select 1 from tournament_keys where id = p_tid and write_key = p_key) then
+    raise exception 'Ongeldige sleutel';
+  end if;
+  update registrations set status = p_status where id = p_rid and tournament_id = p_tid;
+end;
+$$;
+
 -- Realtime: kijkers krijgen updates zodra er iets verandert.
 do $$
 begin

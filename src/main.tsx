@@ -13,6 +13,7 @@ import Presentatie from "./pages/tabs/Presentatie";
 import Resultaten from "./pages/tabs/Resultaten";
 import Live, { Bekijk, KijkLive } from "./pages/Live";
 import Portal from "./pages/Portal";
+import Inschrijven from "./pages/Inschrijven";
 
 const router = createHashRouter([
   { path: "/", element: <Home /> },
@@ -32,6 +33,7 @@ const router = createHashRouter([
   { path: "/live/:id", element: <Live /> },
   { path: "/bekijk", element: <Bekijk /> },
   { path: "/kijk/:id", element: <KijkLive /> },
+  { path: "/inschrijven/:id", element: <Inschrijven /> },
   { path: "/invoer/:id", element: <Portal /> },
   { path: "/scheids/:id/:refId", element: <Portal /> },
 ]);

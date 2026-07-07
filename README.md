@@ -35,6 +35,10 @@ Gratis online toernooisoftware voor (voetbal)toernooien, geïnspireerd op Tourni
     schermen
   - Scheidsrechterportaal: alleen de eigen toegewezen wedstrijden, grote
     invoervelden voor mobiel
+- **Online inschrijven** — publieke inschrijfpagina waar teams zich aanmelden
+  (naam, divisie, contactgegevens); de organisator accepteert of wijst af op de
+  Deelnemers-pagina en geaccepteerde teams worden automatisch toegevoegd.
+  E-mailadressen van inschrijvers zijn niet publiek leesbaar.
 
 ## Live online zetten (eenmalig, gratis)
 

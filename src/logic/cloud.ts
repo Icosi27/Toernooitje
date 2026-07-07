@@ -1,6 +1,6 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { useEffect, useRef, useState } from "react";
-import type { Tournament } from "../types";
+import type { Registration, Tournament } from "../types";
 import { allMatches } from "./resolve";
 import { useApp } from "../store";
 
@@ -124,6 +124,75 @@ export function pushScore(tournamentId: string, matchId: string): void {
       return;
     }
   }
+}
+
+interface RegistrationRow {
+  id: string;
+  division_id: string | null;
+  team_name: string;
+  contact: string | null;
+  email: string | null;
+  phone: string | null;
+  note: string | null;
+  status: string;
+  created_at: string;
+}
+
+/** Team schrijft zich in via de publieke inschrijfpagina. */
+export async function submitRegistration(
+  sb: SupabaseClient,
+  tid: string,
+  reg: Registration
+): Promise<void> {
+  const { error } = await sb.rpc("submit_registration", {
+    p_id: reg.id,
+    p_tid: tid,
+    p_division: reg.divisionId ?? null,
+    p_team: reg.teamName,
+    p_contact: reg.contact ?? null,
+    p_email: reg.email ?? null,
+    p_phone: reg.phone ?? null,
+    p_note: reg.note ?? null,
+  });
+  if (error) throw new Error(error.message);
+}
+
+/** Organisator haalt inschrijvingen op (alleen met de geheime sleutel). */
+export async function listRegistrations(
+  sb: SupabaseClient,
+  tid: string,
+  writeKey: string
+): Promise<Registration[]> {
+  const { data, error } = await sb.rpc("list_registrations", { p_tid: tid, p_key: writeKey });
+  if (error) throw new Error(error.message);
+  return ((data as RegistrationRow[]) ?? []).map((r) => ({
+    id: r.id,
+    divisionId: r.division_id ?? undefined,
+    teamName: r.team_name,
+    contact: r.contact ?? undefined,
+    email: r.email ?? undefined,
+    phone: r.phone ?? undefined,
+    note: r.note ?? undefined,
+    status: (r.status as Registration["status"]) ?? "nieuw",
+    createdAt: r.created_at,
+  }));
+}
+
+/** Accepteren/afwijzen doorzetten naar de server (fire-and-forget). */
+export function decideRegistration(tournamentId: string, regId: string, status: string): void {
+  const t = useApp.getState().tournaments.find((x) => x.id === tournamentId);
+  if (!t?.cloud?.online) return;
+  const sb = getClient();
+  if (!sb) return;
+  sb.rpc("decide_registration", {
+    p_tid: t.id,
+    p_key: t.cloud.writeKey,
+    p_rid: regId,
+    p_status: status,
+  }).then(
+    () => {},
+    () => {}
+  );
 }
 
 /** Queryparameters voor links naar andere apparaten (server + schrijfsleutel). */

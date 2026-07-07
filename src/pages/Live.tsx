@@ -117,6 +117,16 @@ function LiveInner({
               {labels[p]}
             </button>
           ))}
+          {t.registrationOpen && (
+            <a
+              href={`#/inschrijven/${t.id}${
+                window.location.hash.includes("?") ? "?" + window.location.hash.split("?")[1] : ""
+              }`}
+              className="cursor-pointer rounded-full bg-white/20 px-4 py-1.5 text-sm font-semibold hover:bg-white/30"
+            >
+              📝 Inschrijven
+            </a>
+          )}
           <button
             onClick={() => setSlideshow(!slideshow)}
             className={`ml-auto cursor-pointer rounded-full px-4 py-1.5 text-sm ${
