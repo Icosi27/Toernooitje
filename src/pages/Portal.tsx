@@ -5,6 +5,7 @@ import type { Match, Tournament } from "../types";
 import { allMatches, slotLabel, winnerOf } from "../logic/resolve";
 import { isPlayed } from "../logic/standings";
 import { clientFromParams, pushScore, submitScore, useCloudTournament } from "../logic/cloud";
+import { addMinutes } from "../logic/schedule";
 import { gatedMatchIds } from "../logic/phases";
 import { DonateButton } from "../components/monetization";
 import { Confetti, Trophy } from "../components/decor";
@@ -143,6 +144,8 @@ function PortalView({
     .sort((a, b) => (a.m.start ?? "99:99").localeCompare(b.m.start ?? "99:99"));
 
   const fieldName = (fid?: string) => t.fields.find((f) => f.id === fid)?.name;
+  const timeRange = (m: Match) =>
+    m.start ? `${m.start}–${addMinutes(m.start, t.matchDuration)}` : undefined;
   const open = rows.filter(({ m }) => !isPlayed(m));
   const done = rows.filter(({ m }) => isPlayed(m));
 
@@ -200,7 +203,7 @@ function PortalView({
               key={m.id}
               highlight={i === 0}
               liveMode={liveMode}
-              start={m.start}
+              start={timeRange(m)}
               field={fieldName(m.fieldId)}
               division={t.divisions.length > 1 ? d.name : undefined}
               a={slotLabel(m.a, d, t.scoring)}
@@ -230,7 +233,7 @@ function PortalView({
                 {done.map(({ m, d }) => (
                   <PortalRow
                     key={m.id}
-                    start={m.start}
+                    start={timeRange(m)}
                     field={fieldName(m.fieldId)}
                     division={t.divisions.length > 1 ? d.name : undefined}
                     a={slotLabel(m.a, d, t.scoring)}

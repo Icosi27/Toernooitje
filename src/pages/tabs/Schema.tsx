@@ -698,6 +698,14 @@ function BlockCard(props: {
               {time}
             </span>
           ))}
+        {time !== "" && (
+          <span
+            className="score text-xs text-slate-400"
+            title={block.kind === "match" ? "Eindtijd (excl. pauze erna)" : "Eindtijd"}
+          >
+            –{addMinutes(time, block.kind === "match" ? t.matchDuration : block.event.durationMin)}
+          </span>
+        )}
         {hasConflict && <span title={conflicts.join("\n")}>⚠️</span>}
         {played && <span title="Uitslag ingevuld — dit blok staat vast">🔒</span>}
         <span className="mr-auto" />

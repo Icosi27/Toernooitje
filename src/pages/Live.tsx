@@ -5,7 +5,7 @@ import type { Division, Match, Tournament } from "../types";
 import { isPlayed, pouleStandings } from "../logic/standings";
 import { individualStandings } from "../logic/individual";
 import { qualifyingRanks, resolveSlot, slotLabel, winnerOf } from "../logic/resolve";
-import { scheduledMatches } from "../logic/schedule";
+import { addMinutes, scheduledMatches } from "../logic/schedule";
 import { copyText, decodeShare } from "../logic/share";
 import { useCloudTournament } from "../logic/cloud";
 import { AdBlock, DonateButton } from "../components/monetization";
@@ -433,6 +433,11 @@ function NextMatchCard({ t, teamId }: { t: Tournament; teamId: string }) {
           ) : (
             <span className="score text-3xl font-black" style={{ color: "var(--accent)" }}>
               {next.match.start ?? "—"}
+              {next.match.start && (
+                <span className="ml-1 text-base font-bold text-slate-400">
+                  –{addMinutes(next.match.start, t.matchDuration)}
+                </span>
+              )}
             </span>
           )}
           <div className="min-w-0">
@@ -728,7 +733,16 @@ function SchemaView({
                   boxShadow: mine ? "inset 3px 0 0 var(--accent)" : undefined,
                 }}
               >
-                <td className="score px-3 py-2">{m.start ?? "—"}</td>
+                <td className="score whitespace-nowrap px-3 py-2">
+                  {m.start ? (
+                    <>
+                      {m.start}
+                      <span className="text-xs text-slate-400">–{addMinutes(m.start, t.matchDuration)}</span>
+                    </>
+                  ) : (
+                    "—"
+                  )}
+                </td>
                 <td className="px-3 py-2">
                   {m.fieldId && onFieldClick && onMap.has(m.fieldId) ? (
                     <button
