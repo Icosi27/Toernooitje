@@ -7,6 +7,7 @@ import { pouleStandings } from "../../logic/standings";
 import { individualStandings } from "../../logic/individual";
 import { allMatches, slotLabel, winnerOf } from "../../logic/resolve";
 import { pushScore } from "../../logic/cloud";
+import { TeamBadge } from "../../components/TeamBadge";
 
 export default function Resultaten() {
   const t = useOutletContext<Tournament>();
@@ -131,7 +132,12 @@ export default function Resultaten() {
                         {rows.map((r, i) => (
                           <tr key={r.teamId} className="border-t border-slate-100">
                             <td className="py-1 text-slate-400">{i + 1}</td>
-                            <td className="font-medium">{teamName(r.teamId)}</td>
+                            <td className="font-medium">
+                              <span className="flex items-center gap-1.5">
+                                <TeamBadge team={div.teams.find((tm) => tm.id === r.teamId)} size={18} />
+                                {teamName(r.teamId)}
+                              </span>
+                            </td>
                             <td className="text-center">{r.played}</td>
                             <td className="text-center">{r.won}</td>
                             <td className="text-center">{r.drawn}</td>

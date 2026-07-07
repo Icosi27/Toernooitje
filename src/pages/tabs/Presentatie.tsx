@@ -6,6 +6,7 @@ import { Section, Toggle } from "../../components/ui";
 import { DONATE_URL } from "../../components/monetization";
 import { appUrl, copyText, encodeShare } from "../../logic/share";
 import { getClient, getCloudConfig, publishTournament, setCloudConfig } from "../../logic/cloud";
+import { fileToDataUrl } from "../../logic/files";
 import { uid } from "../../logic/id";
 
 /**
@@ -146,15 +147,6 @@ function CloudSharing({
   );
 }
 
-function fileToDataUrl(file: File): Promise<string> {
-  return new Promise((res, rej) => {
-    const r = new FileReader();
-    r.onload = () => res(r.result as string);
-    r.onerror = rej;
-    r.readAsDataURL(file);
-  });
-}
-
 export default function Presentatie() {
   const t = useOutletContext<Tournament>();
   const update = useApp((s) => s.updateTournament);
@@ -253,7 +245,7 @@ export default function Presentatie() {
                 onChange={async (e) => {
                   const f = e.target.files?.[0];
                   if (f) {
-                    const url = await fileToDataUrl(f);
+                    const url = await fileToDataUrl(f, 1280);
                     u((x) => (x.presentation.background = url));
                   }
                 }}
@@ -349,7 +341,7 @@ export default function Presentatie() {
                   onChange={async (e) => {
                     const f = e.target.files?.[0];
                     if (f) {
-                      const url = await fileToDataUrl(f);
+                      const url = await fileToDataUrl(f, 512);
                       u((x) => x.presentation.sponsors.find((y) => y.id === b.id)!.images.push({ id: uid(), dataUrl: url }));
                     }
                   }}

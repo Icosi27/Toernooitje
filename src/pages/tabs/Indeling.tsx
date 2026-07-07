@@ -7,6 +7,7 @@ import { FORMATS, buildFormat, nextPowerOfTwo, seedKnockoutWithTeams } from "../
 import { buildBracket } from "../../logic/bracket";
 import { roundRobin } from "../../logic/roundrobin";
 import { slotLabel } from "../../logic/resolve";
+import { TeamBadge } from "../../components/TeamBadge";
 import { uid } from "../../logic/id";
 
 export default function Indeling() {
@@ -269,6 +270,7 @@ function StagesView({ t, divId }: { t: Tournament; divId: string }) {
                     {p.teamIds.map((id, i) => (
                       <li key={id} className="flex items-center gap-2">
                         <span className="w-5 text-xs text-slate-400">{i + 1}.</span>
+                        <TeamBadge team={div.teams.find((tm) => tm.id === id)} size={18} />
                         {teamName(id)}
                         <TeamMover t={t} divId={divId} stageId={s.id} pouleId={p.id} teamId={id} />
                       </li>

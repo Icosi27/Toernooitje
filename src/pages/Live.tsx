@@ -9,6 +9,7 @@ import { scheduledMatches } from "../logic/schedule";
 import { decodeShare } from "../logic/share";
 import { useCloudTournament } from "../logic/cloud";
 import { AdBlock, DonateButton } from "../components/monetization";
+import { TeamBadge } from "../components/TeamBadge";
 
 type Page = "toernooi" | "standen" | "schema";
 
@@ -226,7 +227,12 @@ function Standen({ t, d }: { t: Tournament; d: Division }) {
                     {pouleStandings(p, t.scoring).map((r, i) => (
                       <tr key={r.teamId} className="border-t border-slate-100">
                         <td className="py-1 text-slate-400">{i + 1}</td>
-                        <td className="font-medium">{teamName(r.teamId)}</td>
+                        <td className="font-medium">
+                          <span className="flex items-center gap-1.5">
+                            <TeamBadge team={d.teams.find((tm) => tm.id === r.teamId)} size={18} />
+                            {teamName(r.teamId)}
+                          </span>
+                        </td>
                         <td className="text-center">{r.played}</td>
                         <td className="text-center">{r.goalDiff > 0 ? `+${r.goalDiff}` : r.goalDiff}</td>
                         <td className="text-center font-bold">{r.points}</td>

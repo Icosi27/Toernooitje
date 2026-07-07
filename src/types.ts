@@ -16,6 +16,8 @@ export interface Team {
   club?: string;
   present?: boolean;
   paid?: boolean;
+  shirtColor?: string;
+  shortsColor?: string;
   players: Player[];
 }
 

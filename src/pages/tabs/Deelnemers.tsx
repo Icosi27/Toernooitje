@@ -5,6 +5,8 @@ import { useApp } from "../../store";
 import { EmptyState, Modal, ModalActions, Toggle } from "../../components/ui";
 import { appUrl, copyText } from "../../logic/share";
 import { decideRegistration, liveQuery } from "../../logic/cloud";
+import { fileToDataUrl } from "../../logic/files";
+import { KitIcon, TeamBadge } from "../../components/TeamBadge";
 import { uid } from "../../logic/id";
 
 type Tab = "teams" | "scheidsrechters" | "beheerders" | "inschrijvingen";
@@ -16,7 +18,8 @@ export default function Deelnemers() {
 
   const [tab, setTab] = useState<Tab>("teams");
   const [divIdx, setDivIdx] = useState(0);
-  const [modal, setModal] = useState<null | "team" | "referee" | "admin" | "player">(null);
+  const [modal, setModal] = useState<null | "team" | "referee" | "admin" | "player" | "editTeam">(null);
+  const [editTeamId, setEditTeamId] = useState<string | null>(null);
   const [nameInput, setNameInput] = useState("");
   const [bulkMode, setBulkMode] = useState(false);
   const [emailInput, setEmailInput] = useState("");
@@ -102,6 +105,7 @@ export default function Deelnemers() {
                   {div.teams.map((team, i) => (
                     <div key={team.id} className="flex items-center gap-3 px-4 py-2">
                       <span className="w-6 text-xs text-slate-400">{i + 1}</span>
+                      <TeamBadge team={team} size={22} />
                       <input
                         className="input border-0 font-medium"
                         value={team.name}
@@ -113,6 +117,16 @@ export default function Deelnemers() {
                         }
                       />
                       <span className="text-xs text-slate-400">{team.players.length} spelers</span>
+                      <button
+                        className="btn-ghost text-xs"
+                        title="Logo en tenuekleuren instellen"
+                        onClick={() => {
+                          setEditTeamId(team.id);
+                          setModal("editTeam");
+                        }}
+                      >
+                        ✎ logo/tenue
+                      </button>
                       <button
                         className="btn-ghost text-xs"
                         onClick={() => {
@@ -405,6 +419,113 @@ export default function Deelnemers() {
           )}
         </>
       )}
+
+      {modal === "editTeam" &&
+        editTeamId &&
+        (() => {
+          const team = div.teams.find((tm) => tm.id === editTeamId);
+          if (!team) return null;
+          const setTeam = (fn: (tm: (typeof div.teams)[0]) => void) =>
+            u((x) => {
+              const d = x.divisions.find((d) => d.id === div.id)!;
+              const tm = d.teams.find((y) => y.id === editTeamId);
+              if (tm) fn(tm);
+            });
+          return (
+            <Modal title={`${team.name} — logo & tenue`} onClose={() => setModal(null)}>
+              <div className="space-y-5">
+                <div>
+                  <label className="label">Teamlogo</label>
+                  <div className="flex items-center gap-4">
+                    {team.logo ? (
+                      <img src={team.logo} alt="logo" className="h-16 w-16 rounded border border-slate-200 object-contain p-1" />
+                    ) : (
+                      <div className="flex h-16 w-16 items-center justify-center rounded border border-dashed border-slate-300 text-2xl text-slate-300">
+                        🛡️
+                      </div>
+                    )}
+                    <div className="flex flex-col gap-2">
+                      <label className="btn-outline cursor-pointer">
+                        Uploaden
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={async (e) => {
+                            const f = e.target.files?.[0];
+                            if (f) {
+                              const url = await fileToDataUrl(f, 128);
+                              setTeam((tm) => (tm.logo = url));
+                            }
+                          }}
+                        />
+                      </label>
+                      {team.logo && (
+                        <button className="btn-ghost text-xs text-red-500" onClick={() => setTeam((tm) => (tm.logo = undefined))}>
+                          Verwijder logo
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="label">Tenue</label>
+                  <div className="flex items-center gap-5">
+                    <KitIcon shirt={team.shirtColor ?? "#94a3b8"} shorts={team.shortsColor ?? "#e2e8f0"} size={56} />
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="color"
+                          value={team.shirtColor ?? "#94a3b8"}
+                          className="h-8 w-14 cursor-pointer rounded border border-slate-200"
+                          onChange={(e) => setTeam((tm) => (tm.shirtColor = e.target.value))}
+                        />
+                        <span className="text-sm">Shirt</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="color"
+                          value={team.shortsColor ?? "#e2e8f0"}
+                          className="h-8 w-14 cursor-pointer rounded border border-slate-200"
+                          onChange={(e) => setTeam((tm) => (tm.shortsColor = e.target.value))}
+                        />
+                        <span className="text-sm">Broekje</span>
+                      </div>
+                      {(team.shirtColor || team.shortsColor) && (
+                        <button
+                          className="cursor-pointer text-xs text-slate-400 underline"
+                          onClick={() =>
+                            setTeam((tm) => {
+                              tm.shirtColor = undefined;
+                              tm.shortsColor = undefined;
+                            })
+                          }
+                        >
+                          kleuren wissen
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="label">E-mail (contactpersoon)</label>
+                  <input
+                    className="input"
+                    value={team.email ?? ""}
+                    onChange={(e) => setTeam((tm) => (tm.email = e.target.value || undefined))}
+                  />
+                </div>
+              </div>
+              <div className="mt-6 flex justify-end">
+                <button className="btn-primary" onClick={() => setModal(null)}>
+                  Klaar
+                </button>
+              </div>
+            </Modal>
+          );
+        })()}
 
       {modal === "team" && (
         <Modal title="Voeg team toe" onClose={() => setModal(null)}>
