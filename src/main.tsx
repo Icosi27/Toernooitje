@@ -1,0 +1,38 @@
+import React from "react";
+import ReactDOM from "react-dom/client";
+import { createHashRouter, RouterProvider } from "react-router-dom";
+import "./index.css";
+import Home from "./pages/Home";
+import Wizard from "./pages/Wizard";
+import Dashboard from "./pages/Dashboard";
+import Algemeen from "./pages/tabs/Algemeen";
+import Deelnemers from "./pages/tabs/Deelnemers";
+import Indeling from "./pages/tabs/Indeling";
+import Schema from "./pages/tabs/Schema";
+import Presentatie from "./pages/tabs/Presentatie";
+import Resultaten from "./pages/tabs/Resultaten";
+import Live from "./pages/Live";
+
+const router = createHashRouter([
+  { path: "/", element: <Home /> },
+  { path: "/nieuw", element: <Wizard /> },
+  {
+    path: "/t/:id",
+    element: <Dashboard />,
+    children: [
+      { index: true, element: <Algemeen /> },
+      { path: "deelnemers", element: <Deelnemers /> },
+      { path: "indeling", element: <Indeling /> },
+      { path: "schema", element: <Schema /> },
+      { path: "presentatie", element: <Presentatie /> },
+      { path: "resultaten", element: <Resultaten /> },
+    ],
+  },
+  { path: "/live/:id", element: <Live /> },
+]);
+
+ReactDOM.createRoot(document.getElementById("root")!).render(
+  <React.StrictMode>
+    <RouterProvider router={router} />
+  </React.StrictMode>
+);

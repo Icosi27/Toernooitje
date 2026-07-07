@@ -1,0 +1,39 @@
+@import "tailwindcss";
+
+:root {
+  --accent: #3722e0;
+}
+
+body {
+  @apply bg-slate-50 text-slate-900 antialiased;
+  font-family: "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+.btn,
+.btn-primary,
+.btn-outline,
+.btn-ghost {
+  @apply inline-flex items-center justify-center gap-2 rounded px-4 py-2 text-sm font-semibold uppercase tracking-wide transition cursor-pointer select-none;
+}
+.btn-primary {
+  @apply text-white shadow-sm hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed;
+  background: var(--accent);
+}
+.btn-outline {
+  @apply border border-slate-300 bg-white text-slate-700 hover:bg-slate-100;
+}
+.btn-ghost {
+  @apply text-slate-600 hover:bg-slate-100;
+}
+.input {
+  @apply w-full border-0 border-b border-slate-300 bg-transparent px-0 py-2 text-sm outline-none transition focus:border-b-2;
+}
+.input:focus {
+  border-color: var(--accent);
+}
+.card {
+  @apply rounded-lg bg-white shadow-sm border border-slate-200;
+}
+.label {
+  @apply block text-xs font-medium text-slate-500 mb-1;
+}
