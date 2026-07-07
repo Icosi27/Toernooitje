@@ -11,8 +11,9 @@ import { useCloudTournament } from "../logic/cloud";
 import { AdBlock, DonateButton } from "../components/monetization";
 import { TeamBadge } from "../components/TeamBadge";
 import { Confetti, Trophy } from "../components/decor";
+import { VenueMapView } from "../components/VenueMap";
 
-type Page = "toernooi" | "standen" | "schema";
+type Page = "toernooi" | "standen" | "schema" | "plattegrond";
 
 /** Publieke toernooiwebsite + diavoorstelling (op het apparaat van de organisator). */
 export default function Live() {
@@ -87,6 +88,7 @@ function LiveInner({
     if (t.presentation.pages.toernooi) p.push("toernooi");
     if (t.presentation.pages.standen) p.push("standen");
     if (t.presentation.pages.schema) p.push("schema");
+    if ((t.venueMap?.blocks?.length ?? 0) > 0) p.push("plattegrond");
     return p.length ? p : (["standen"] as Page[]);
   }, [t]);
 
@@ -106,7 +108,12 @@ function LiveInner({
       </div>
     );
 
-  const labels: Record<Page, string> = { toernooi: "Toernooi", standen: "Standen", schema: "Schema" };
+  const labels: Record<Page, string> = {
+    toernooi: "Toernooi",
+    standen: "Standen",
+    schema: "Schema",
+    plattegrond: "Plattegrond",
+  };
   const allTeams = t.divisions.flatMap((d) => d.teams.map((tm) => ({ team: tm, division: d })));
 
   const shareTeamLink = async () => {
@@ -240,6 +247,7 @@ function LiveInner({
         {page === "toernooi" && <ToernooiInfo t={t} />}
         {page === "standen" && t.divisions.map((d) => <Standen key={d.id} t={t} d={d} myTeam={myTeam} />)}
         {page === "schema" && <SchemaView t={t} myTeam={myTeam} />}
+        {page === "plattegrond" && <VenueMapView t={t} highlightFieldId={nextFieldFor(t, myTeam)} />}
 
         <AdBlock t={t} slot={1} />
 
@@ -308,6 +316,13 @@ function ChampionBanner({ t, d }: { t: Tournament; d: Division }) {
     );
   }
   return null;
+}
+
+/** Het veld van de eerstvolgende wedstrijd van mijn team (voor de plattegrond-📍). */
+function nextFieldFor(t: Tournament, teamId: string): string | undefined {
+  if (!teamId) return undefined;
+  const next = teamMatches(t, teamId).find(({ match: m }) => !isPlayed(m));
+  return next?.match.fieldId;
 }
 
 /** Alle wedstrijden van één team (ook toekomstige zodra placeholders bekend zijn). */

@@ -2,7 +2,8 @@ import { useState } from "react";
 import { useOutletContext } from "react-router-dom";
 import type { Tournament } from "../../types";
 import { useApp } from "../../store";
-import { EmptyState, Modal, ModalActions } from "../../components/ui";
+import { EmptyState, Modal, ModalActions, Section } from "../../components/ui";
+import { VenueMapEditor } from "../../components/VenueMap";
 import { autoSchedule, scheduledMatches, shiftSchedule } from "../../logic/schedule";
 import { allMatches, slotLabel } from "../../logic/resolve";
 import { uid } from "../../logic/id";
@@ -205,6 +206,16 @@ export default function Schema() {
           Nog {unplanned} wedstrijd(en) niet ingepland — klik op "Plan automatisch".
         </p>
       )}
+
+      <div className="mt-8">
+        <Section
+          title="🗺️ Plattegrond"
+          subtitle="Laat iedereen zien waar de velden, kantine en kleedkamers zijn"
+          defaultOpen={(t.venueMap?.blocks?.length ?? 0) > 0}
+        >
+          <VenueMapEditor t={t} />
+        </Section>
+      </div>
 
       {fieldModal && (
         <Modal title="Veld toevoegen" onClose={() => setFieldModal(false)}>

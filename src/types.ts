@@ -42,6 +42,22 @@ export interface Field {
   location?: string;
 }
 
+/** Blok op de plattegrond, in canvas-eenheden (1000 x 600). */
+export interface MapBlock {
+  id: ID;
+  kind: "field" | "kantine" | "kleedkamer" | "overig";
+  fieldId?: ID; // koppeling met een veld
+  label?: string;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+export interface VenueMap {
+  blocks: MapBlock[];
+}
+
 /** Verwijzing naar een deelnemer van een wedstrijd: een echt team of een placeholder. */
 export type Slot =
   | { kind: "team"; teamId: ID }
@@ -200,6 +216,8 @@ export interface Tournament {
   cloud?: { online: boolean; writeKey: string };
   /** welke administratievelden per team worden bijgehouden */
   teamFields?: { present: boolean; paid: boolean; email: boolean };
+  /** plattegrond van het sportpark (kantine, kleedkamers, velden) */
+  venueMap?: VenueMap;
   /** online inschrijfpagina voor teams */
   registrationOpen?: boolean;
   registrationInfo?: string;
