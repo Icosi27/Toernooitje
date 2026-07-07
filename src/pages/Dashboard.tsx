@@ -114,6 +114,7 @@ const NAV = [
   { to: "deelnemers", icon: "👕", label: "Deelnemers" },
   { to: "indeling", icon: "🗂️", label: "Indeling" },
   { to: "schema", icon: "📅", label: "Schema" },
+  { to: "plattegrond", icon: "🗺️", label: "Plattegrond" },
   { to: "resultaten", icon: "🔢", label: "Resultaten" },
   { to: "presentatie", icon: "🖥️", label: "Presentatie" },
 ];

@@ -12,6 +12,7 @@ import Algemeen from "./pages/tabs/Algemeen";
 import Deelnemers from "./pages/tabs/Deelnemers";
 import Indeling from "./pages/tabs/Indeling";
 import Schema from "./pages/tabs/Schema";
+import Plattegrond from "./pages/tabs/Plattegrond";
 import Presentatie from "./pages/tabs/Presentatie";
 import Resultaten from "./pages/tabs/Resultaten";
 import Live, { Bekijk, KijkLive } from "./pages/Live";
@@ -34,6 +35,7 @@ const router = createHashRouter([
       { path: "deelnemers", element: <Deelnemers /> },
       { path: "indeling", element: <Indeling /> },
       { path: "schema", element: <Schema /> },
+      { path: "plattegrond", element: <Plattegrond /> },
       { path: "presentatie", element: <Presentatie /> },
       { path: "resultaten", element: <Resultaten /> },
     ],

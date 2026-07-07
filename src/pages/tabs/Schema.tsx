@@ -21,8 +21,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import type { Division, ScheduleEvent, Tournament } from "../../types";
 import { useApp } from "../../store";
-import { EmptyState, Modal, ModalActions, Section } from "../../components/ui";
-import { VenueMapEditor } from "../../components/VenueMap";
+import { EmptyState, Modal, ModalActions } from "../../components/ui";
 import { addMinutes, autoSchedule, shiftSchedule } from "../../logic/schedule";
 import { allMatches, resolveSlot, slotLabel } from "../../logic/resolve";
 import { isPlayed } from "../../logic/standings";
@@ -464,16 +463,6 @@ export default function Schema() {
           </DragOverlay>
         </DndContext>
       )}
-
-      <div className="mt-8">
-        <Section
-          title="🗺️ Plattegrond"
-          subtitle="Laat iedereen zien waar de velden, kantine en kleedkamers zijn"
-          defaultOpen={(t.venueMap?.blocks?.length ?? 0) > 0}
-        >
-          <VenueMapEditor t={t} />
-        </Section>
-      </div>
 
       {/* undo-snackbar */}
       {undo && (
