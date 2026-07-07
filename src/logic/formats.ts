@@ -111,6 +111,7 @@ export function nextPowerOfTwo(n: number): number {
 /** Vult tbd-slots van een pure knock-out met de teams van de divisie. */
 export function seedKnockoutWithTeams(stage: Stage, d: Division): void {
   if (stage.type !== "bracket") return;
+  stage.started = true; // geen poulefase ervoor, dus direct van start
   const first = stage.rounds[0];
   let ti = 0;
   for (const m of first.matches) {

@@ -483,7 +483,14 @@ function Standen({ t, d, myTeam }: { t: Tournament; d: Division; myTeam?: string
           if (s.type === "bracket")
             return (
               <div key={s.id} className="card p-4 md:col-span-2">
-                <div className="mb-2 font-semibold">{s.name}</div>
+                <div className="mb-2 flex items-center gap-2 font-semibold">
+                  {s.name}
+                  {!s.started && (
+                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-normal text-slate-500">
+                      start na de groepsfase
+                    </span>
+                  )}
+                </div>
                 <div className="flex gap-6 overflow-x-auto pb-2">
                   {s.rounds.map((r, ri) => (
                     <div key={ri} className="min-w-44">

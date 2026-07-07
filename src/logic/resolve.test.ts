@@ -4,6 +4,7 @@ import { defaultScoring } from "../types";
 import { buildFormat } from "./formats";
 import { allMatches, qualifyingRanks, resolveSlot, slotLabel, winnerOf } from "./resolve";
 import { isPlayed } from "./standings";
+import { startBracketStage } from "./phases";
 import { uid } from "./id";
 
 function wkDivision(): Division {
@@ -35,13 +36,12 @@ describe("winnerOf", () => {
 });
 
 describe("resolveSlot met WK-format (2 poules + KO van 4)", () => {
-  it("laat pouleRank pas een team opleveren als de poule uit is", () => {
+  it("laat pouleRank pas een team opleveren nadat de organisator de fase start", () => {
     const d = wkDivision();
     const scoring = defaultScoring();
     const ko = d.stages[1];
     if (ko.type !== "bracket") throw new Error("verwacht bracket");
-    const firstSlot = ko.rounds[0].matches[0].a;
-    expect(resolveSlot(firstSlot, d, scoring)).toBeNull();
+    expect(resolveSlot(ko.rounds[0].matches[0].a, d, scoring)).toBeNull();
 
     // speel alle poulewedstrijden: hoger teamnummer wint altijd
     for (const s of d.stages) {
@@ -56,8 +56,11 @@ describe("resolveSlot met WK-format (2 poules + KO van 4)", () => {
         }
       }
     }
-    const resolved = resolveSlot(firstSlot, d, scoring);
-    expect(resolved).not.toBeNull();
+    // poules compleet, maar fase nog niet gestart: blijft placeholder
+    expect(resolveSlot(ko.rounds[0].matches[0].a, d, scoring)).toBeNull();
+
+    expect(startBracketStage(d, ko.id, scoring)).toBe(true);
+    expect(resolveSlot(ko.rounds[0].matches[0].a, d, scoring)).not.toBeNull();
   });
 
   it("laat winnaars doorstromen naar de finale", () => {
@@ -71,6 +74,7 @@ describe("resolveSlot met WK-format (2 poules + KO van 4)", () => {
             m.scoreA = 1;
             m.scoreB = 0;
           }
+    startBracketStage(d, d.stages[1].id, scoring);
     const ko = d.stages[1];
     if (ko.type !== "bracket") throw new Error("verwacht bracket");
     const halve = ko.rounds[0].matches;

@@ -95,6 +95,8 @@ export interface BracketStage {
   rounds: BracketRound[];
   thirdPlace?: boolean;
   consolation?: boolean; // verliezersronde (troostfinale volledig)
+  /** de organisator start de fase expliciet; pas dan stromen teams door */
+  started?: boolean;
 }
 
 export interface IndividualStage {

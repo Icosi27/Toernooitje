@@ -1,5 +1,5 @@
 import type { Division, ID, Match, ScoringConfig, Slot, Team } from "../types";
-import { isPlayed, pouleStandings } from "./standings";
+import { isPlayed } from "./standings";
 
 /** Alle wedstrijden van een divisie, in fase-volgorde. */
 export function allMatches(d: Division): Match[] {
@@ -30,19 +30,11 @@ export function resolveSlot(slot: Slot, d: Division, scoring: ScoringConfig): Te
   switch (slot.kind) {
     case "team":
       return d.teams.find((t) => t.id === slot.teamId) ?? null;
-    case "pouleRank": {
-      for (const s of d.stages) {
-        if (s.type !== "poules") continue;
-        const poule = s.poules.find((p) => p.id === slot.pouleId);
-        if (!poule) continue;
-        const complete = poule.matches.length > 0 && poule.matches.every(isPlayed);
-        if (!complete) return null;
-        const rows = pouleStandings(poule, scoring);
-        const row = rows[slot.rank - 1];
-        return row ? (d.teams.find((t) => t.id === row.teamId) ?? null) : null;
-      }
+    case "pouleRank":
+      // teams stromen bewust níet automatisch door: de organisator start de
+      // volgende fase expliciet (startBracketStage), die dit slot dan omzet
+      // in een echt team. Tot die tijd blijft het een placeholder.
       return null;
-    }
     case "winner":
     case "loser": {
       const m = findMatch(d, slot.matchId);

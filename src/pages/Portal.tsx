@@ -5,6 +5,7 @@ import type { Match, Tournament } from "../types";
 import { allMatches, slotLabel, winnerOf } from "../logic/resolve";
 import { isPlayed } from "../logic/standings";
 import { clientFromParams, pushScore, submitScore, useCloudTournament } from "../logic/cloud";
+import { gatedMatchIds } from "../logic/phases";
 import { DonateButton } from "../components/monetization";
 import { Confetti, Trophy } from "../components/decor";
 
@@ -128,8 +129,11 @@ function PortalView({
   if (refId && !referee)
     return <div className="p-10 text-center">Ongeldige scheidsrechterlink.</div>;
 
+  // wedstrijden in fases die de organisator nog niet gestart heeft, blijven buiten beeld
+  const gated = gatedMatchIds(t.divisions);
   const rows = t.divisions
     .flatMap((d) => allMatches(d).map((m) => ({ m, d })))
+    .filter(({ m }) => !gated.has(m.id))
     .filter(({ m }) => !refId || m.refereeId === refId)
     .sort((a, b) => (a.m.start ?? "99:99").localeCompare(b.m.start ?? "99:99"));
 

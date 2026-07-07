@@ -6,6 +6,7 @@ import { pouleStandings } from "../../logic/standings";
 import { individualStandings } from "../../logic/individual";
 import { allMatches, slotLabel, winnerOf } from "../../logic/resolve";
 import { pushScore } from "../../logic/cloud";
+import { bracketReadiness, stageProgress, startBracketStage } from "../../logic/phases";
 import { TeamBadge } from "../../components/TeamBadge";
 
 export default function Resultaten() {
@@ -36,7 +37,30 @@ export default function Resultaten() {
 
   const teamName = (id: string) => div.teams.find((tm) => tm.id === id)?.name ?? "?";
 
-  const MatchRow = ({ m, ko }: { m: Match; ko?: boolean }) => {
+  /** Voortgangschip per fase: "11/16 uitslagen" met balkje, groen als compleet. */
+  const ProgressChip = ({ done, total }: { done: number; total: number }) => {
+    if (total === 0) return null;
+    const complete = done === total;
+    return (
+      <span
+        className={`flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold ${
+          complete ? "bg-green-100 text-green-700" : "bg-slate-100 text-slate-600"
+        }`}
+      >
+        <span className="score">
+          {done}/{total} uitslagen {complete && "✓"}
+        </span>
+        <span className="h-1.5 w-16 overflow-hidden rounded-full bg-black/10">
+          <span
+            className="block h-full rounded-full transition-all"
+            style={{ width: `${(done / total) * 100}%`, background: complete ? "#16a34a" : "var(--accent)" }}
+          />
+        </span>
+      </span>
+    );
+  };
+
+  const MatchRow = ({ m, ko, disabled }: { m: Match; ko?: boolean; disabled?: boolean }) => {
     const drawInKo =
       ko && m.scoreA !== undefined && m.scoreB !== undefined && m.scoreA === m.scoreB;
     return (
@@ -46,7 +70,8 @@ export default function Resultaten() {
         <input
           type="number"
           min={0}
-          className="w-12 rounded border border-slate-200 px-1 py-0.5 text-center"
+          disabled={disabled}
+          className="w-12 rounded border border-slate-200 px-1 py-0.5 text-center disabled:bg-slate-50"
           value={m.scoreA ?? ""}
           onChange={(e) => setScore(m.id, "A", e.target.value)}
         />
@@ -54,7 +79,8 @@ export default function Resultaten() {
         <input
           type="number"
           min={0}
-          className="w-12 rounded border border-slate-200 px-1 py-0.5 text-center"
+          disabled={disabled}
+          className="w-12 rounded border border-slate-200 px-1 py-0.5 text-center disabled:bg-slate-50"
           value={m.scoreB ?? ""}
           onChange={(e) => setScore(m.id, "B", e.target.value)}
         />
@@ -108,9 +134,51 @@ export default function Resultaten() {
         </Link>
       </div>
 
-      {div.stages.map((s) => (
+      {div.stages.map((s) => {
+        const prog = stageProgress(s);
+        const readiness = s.type === "bracket" ? bracketReadiness(div, s) : null;
+        const gated = s.type === "bracket" && !s.started && readiness!.hasSources;
+        return (
         <div key={s.id} className="mb-8">
-          <h3 className="mb-3 text-lg font-bold">{s.name}</h3>
+          <div className="mb-3 flex flex-wrap items-center gap-3">
+            <h3 className="text-lg font-bold">{s.name}</h3>
+            <ProgressChip done={prog.done} total={prog.total} />
+            {s.type === "bracket" && s.started && (
+              <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs text-green-700">gestart</span>
+            )}
+          </div>
+
+          {gated &&
+            (readiness!.ready ? (
+              <div className="stadium fade-in mb-4 flex flex-wrap items-center justify-between gap-4 rounded-xl p-5 text-white">
+                <div>
+                  <div className="font-bold">Groepsfase compleet ✓</div>
+                  <p className="mt-1 text-sm text-white/80">
+                    Alle uitslagen zijn binnen. Start de volgende fase om de teams door te schuiven
+                    op basis van de eindstand.
+                  </p>
+                </div>
+                <button
+                  className="shrink-0 cursor-pointer rounded-full bg-amber-400 px-6 py-3 font-black text-amber-950 shadow-lg transition hover:-translate-y-0.5 hover:bg-amber-300"
+                  onClick={() => {
+                    if (!confirm(`${s.name} starten? De eindstand van de poules bepaalt de indeling — dit kan niet ongedaan worden gemaakt.`))
+                      return;
+                    update(t.id, (x) => {
+                      const dd = x.divisions.find((d) => d.id === div.id)!;
+                      startBracketStage(dd, s.id, x.scoring);
+                    });
+                  }}
+                >
+                  🏁 Start {s.name.toLowerCase()}
+                </button>
+              </div>
+            ) : (
+              <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+                ⏳ Deze fase start zodra de groepsfase compleet is — nog{" "}
+                <b>{readiness!.missing}</b> uitslag{readiness!.missing !== 1 ? "en" : ""} nodig.
+                Daarna verschijnt hier de startknop.
+              </div>
+            ))}
 
           {s.type === "poules" &&
             s.poules.map((p) => {
@@ -163,9 +231,9 @@ export default function Resultaten() {
 
           {s.type === "bracket" &&
             s.rounds.map((r, ri) => (
-              <div key={ri} className="card mb-4 p-4">
+              <div key={ri} className={`card mb-4 p-4 ${gated ? "opacity-60" : ""}`}>
                 <div className="mb-1 font-semibold">{r.name}</div>
-                {r.matches.map((m) => <MatchRow key={m.id} m={m} ko />)}
+                {r.matches.map((m) => <MatchRow key={m.id} m={m} ko disabled={gated} />)}
               </div>
             ))}
 
@@ -236,7 +304,8 @@ export default function Resultaten() {
             </div>
           )}
         </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
