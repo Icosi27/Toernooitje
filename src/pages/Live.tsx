@@ -66,6 +66,18 @@ function LiveInner({
   const [slideshow, setSlideshow] = useState(false);
   const [myTeam, setMyTeam] = useState<string>("");
   const [copied, setCopied] = useState(false);
+  // veld dat vanuit het schema is aangetikt (pin op de plattegrond)
+  const [pinnedField, setPinnedField] = useState<string | null>(null);
+
+  const goToPage = (p: Page) => {
+    if (p !== "plattegrond") setPinnedField(null);
+    setPage(p);
+  };
+  const showFieldOnMap = (fieldId: string) => {
+    setPinnedField(fieldId);
+    setPage("plattegrond");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
 
   // mijn team: uit de link (?team=) of eerder gekozen op dit apparaat
   useEffect(() => {
@@ -165,7 +177,7 @@ function LiveInner({
           {pages.map((p) => (
             <button
               key={p}
-              onClick={() => setPage(p)}
+              onClick={() => goToPage(p)}
               className={`cursor-pointer rounded-full px-4 py-1.5 text-sm font-semibold ${
                 page === p ? "bg-white" : "bg-white/20 text-white hover:bg-white/30"
               }`}
@@ -246,8 +258,16 @@ function LiveInner({
 
         {page === "toernooi" && <ToernooiInfo t={t} />}
         {page === "standen" && t.divisions.map((d) => <Standen key={d.id} t={t} d={d} myTeam={myTeam} />)}
-        {page === "schema" && <SchemaView t={t} myTeam={myTeam} />}
-        {page === "plattegrond" && <VenueMapView t={t} highlightFieldId={nextFieldFor(t, myTeam)} />}
+        {page === "schema" && (
+          <SchemaView
+            t={t}
+            myTeam={myTeam}
+            onFieldClick={pages.includes("plattegrond") ? showFieldOnMap : undefined}
+          />
+        )}
+        {page === "plattegrond" && (
+          <VenueMapView t={t} highlightFieldId={pinnedField ?? nextFieldFor(t, myTeam)} />
+        )}
 
         <AdBlock t={t} slot={1} />
 
@@ -560,9 +580,18 @@ function Standen({ t, d, myTeam }: { t: Tournament; d: Division; myTeam?: string
   );
 }
 
-function SchemaView({ t, myTeam }: { t: Tournament; myTeam?: string }) {
+function SchemaView({
+  t,
+  myTeam,
+  onFieldClick,
+}: {
+  t: Tournament;
+  myTeam?: string;
+  onFieldClick?: (fieldId: string) => void;
+}) {
   const rows = scheduledMatches(t);
   const fieldName = (id?: string) => t.fields.find((f) => f.id === id)?.name ?? "—";
+  const onMap = new Set((t.venueMap?.blocks ?? []).map((b) => b.fieldId).filter(Boolean));
   if (rows.length === 0) return <p className="text-center text-slate-500">Nog geen speelschema.</p>;
 
   // per veld: de eerste niet-gespeelde wedstrijd is "nu bezig" zodra de starttijd voorbij is
@@ -607,7 +636,20 @@ function SchemaView({ t, myTeam }: { t: Tournament; myTeam?: string }) {
                 }}
               >
                 <td className="score px-3 py-2">{m.start ?? "—"}</td>
-                <td className="px-3 py-2">{fieldName(m.fieldId)}</td>
+                <td className="px-3 py-2">
+                  {m.fieldId && onFieldClick && onMap.has(m.fieldId) ? (
+                    <button
+                      className="cursor-pointer whitespace-nowrap underline decoration-dotted underline-offset-2"
+                      style={{ color: "var(--accent)" }}
+                      title="Toon dit veld op de plattegrond"
+                      onClick={() => onFieldClick(m.fieldId!)}
+                    >
+                      🗺️ {fieldName(m.fieldId)}
+                    </button>
+                  ) : (
+                    fieldName(m.fieldId)
+                  )}
+                </td>
                 <td className="px-3 py-2">
                   <span className={mine ? "font-semibold" : ""}>
                     {slotLabel(m.a, d, t.scoring)} — {slotLabel(m.b, d, t.scoring)}

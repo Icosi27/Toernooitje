@@ -126,7 +126,7 @@ export function VenueMapView({
       </div>
       {highlightFieldId && (
         <p className="border-t border-slate-100 px-3 py-1.5 text-xs text-slate-500">
-          📍 = het veld van jullie volgende wedstrijd
+          📍 = het veld dat je aantikte, of het veld van jullie volgende wedstrijd
         </p>
       )}
     </div>
