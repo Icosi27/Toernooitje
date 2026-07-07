@@ -3,6 +3,8 @@ import ReactDOM from "react-dom/client";
 import { createHashRouter, RouterProvider } from "react-router-dom";
 import "./index.css";
 import Home from "./pages/Home";
+import Landing from "./pages/Landing";
+import { Privacy, Voorwaarden } from "./pages/Juridisch";
 import Wizard from "./pages/Wizard";
 import Dashboard from "./pages/Dashboard";
 import Algemeen from "./pages/tabs/Algemeen";
@@ -16,7 +18,10 @@ import Portal from "./pages/Portal";
 import Inschrijven from "./pages/Inschrijven";
 
 const router = createHashRouter([
-  { path: "/", element: <Home /> },
+  { path: "/", element: <Landing /> },
+  { path: "/app", element: <Home /> },
+  { path: "/voorwaarden", element: <Voorwaarden /> },
+  { path: "/privacy", element: <Privacy /> },
   { path: "/nieuw", element: <Wizard /> },
   {
     path: "/t/:id",

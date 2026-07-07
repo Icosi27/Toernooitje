@@ -9,18 +9,18 @@ export default function Home() {
   return (
     <div className="min-h-screen">
       <header className="accent-header flex items-center justify-between px-6 py-4 text-white">
-        <div className="flex items-center gap-2 text-xl font-bold">🏆 Toernooitje</div>
+        <Link to="/" className="flex items-center gap-2 text-xl font-bold">🏆 Toernooitje</Link>
         <div className="flex items-center gap-4">
           <DonateButton small />
-          <span className="text-sm font-semibold uppercase">Nederlands</span>
+          <Link to="/" className="text-sm underline opacity-80">homepage</Link>
         </div>
       </header>
 
       <main className="mx-auto max-w-3xl px-4 py-10">
         <div className="mb-8 text-center">
-          <h1 className="text-3xl font-bold">Gratis online toernooisoftware</h1>
+          <h1 className="text-3xl font-bold">Mijn toernooien</h1>
           <p className="mt-2 text-slate-600">
-            Organiseer je voetbaltoernooi: poules, knock-outs, speelschema's en live standen.
+            Je toernooien staan veilig op dit apparaat. Accounts om overal in te loggen komen eraan.
           </p>
           <button className="btn-primary mt-6" onClick={() => nav("/nieuw")}>
             + Nieuw toernooi
@@ -58,7 +58,9 @@ export default function Home() {
 
         <p className="mt-10 text-center text-xs text-slate-400">
           Toernooitje is gratis en blijft draaien dankzij advertenties en giften. Organisatoren
-          kunnen de reclame afkopen en eigen sponsoren tonen.
+          kunnen de reclame afkopen en eigen sponsoren tonen.{" "}
+          <Link to="/voorwaarden" className="underline">Voorwaarden</Link> ·{" "}
+          <Link to="/privacy" className="underline">Privacy</Link>
         </p>
       </main>
     </div>

@@ -72,7 +72,7 @@ export default function Wizard() {
                   </button>
                 </div>
                 <div className="mt-8 flex justify-end gap-3">
-                  <button className="btn-ghost" onClick={() => nav("/")}>Annuleren</button>
+                  <button className="btn-ghost" onClick={() => nav("/app")}>Annuleren</button>
                   <button className="btn-primary" disabled={!name.trim()} onClick={() => setStep(1)}>
                     Volgende
                   </button>
