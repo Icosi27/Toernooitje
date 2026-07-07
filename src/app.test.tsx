@@ -4,13 +4,17 @@
  */
 import { beforeEach, describe, expect, it } from "vitest";
 import { render, screen } from "@testing-library/react";
-import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { MemoryRouter, Outlet, Route, Routes } from "react-router-dom";
 import Landing from "./pages/Landing";
 import Auth from "./pages/Auth";
 import Wizard from "./pages/Wizard";
 import { Privacy, Voorwaarden } from "./pages/Juridisch";
 import Live from "./pages/Live";
-import { useApp } from "./store";
+import Schema from "./pages/tabs/Schema";
+import { useApp, useTournament } from "./store";
+import { buildFormat } from "./logic/formats";
+import { autoSchedule } from "./logic/schedule";
+import { addEvent } from "./logic/program";
 
 beforeEach(() => {
   localStorage.clear();
@@ -74,6 +78,47 @@ describe("Juridische pagina's", () => {
     at("/privacy", <Privacy />);
     expect(screen.getByText("Privacyverklaring")).toBeTruthy();
     expect(screen.getByText(/Jouw rechten/)).toBeTruthy();
+  });
+});
+
+describe("Programma-tab (Schema)", () => {
+  function TabShell({ id }: { id: string }) {
+    const t = useTournament(id);
+    return t ? <Outlet context={t} /> : null;
+  }
+
+  it("rendert kolommen per veld met wedstrijd- en pauzeblokken", () => {
+    const id = useApp
+      .getState()
+      .createTournament("Plannertoernooi", ["2026-06-01"], ["Park"], ["Divisie 1"], false);
+    useApp.getState().updateTournament(id, (t) => {
+      const d = t.divisions[0];
+      d.teams = Array.from({ length: 4 }, (_, i) => ({ id: `t${i}`, name: `Team ${i}`, players: [] }));
+      d.stages = buildFormat(d, "competitie", {});
+      t.fields = [
+        { id: "f0", name: "Veld 1" },
+        { id: "f1", name: "Veld 2" },
+      ];
+      autoSchedule(t);
+      addEvent(t, "f0", "pauze", "Lunchpauze", 20);
+    });
+    render(
+      <MemoryRouter initialEntries={[`/t/${id}/schema`]}>
+        <Routes>
+          <Route path="/t/:id" element={<TabShell id={id} />}>
+            <Route path="schema" element={<Schema />} />
+          </Route>
+        </Routes>
+      </MemoryRouter>
+    );
+    expect(screen.getByText(/Veld 1/)).toBeTruthy();
+    expect(screen.getByText(/Veld 2/)).toBeTruthy();
+    expect(screen.getByText(/Lunchpauze/)).toBeTruthy();
+    expect(screen.getByText(/20 min/)).toBeTruthy();
+    expect(screen.getAllByText("+ Pauze").length).toBe(2);
+    expect(screen.getAllByText("+ Evenement").length).toBe(2);
+    expect(screen.getByText(/Plan automatisch/)).toBeTruthy();
+    expect(screen.getAllByText(/Team 0/).length).toBeGreaterThan(0);
   });
 });
 

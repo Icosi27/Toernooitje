@@ -78,7 +78,8 @@ export function autoSchedule(t: Tournament): Tournament {
   }
 
   // scheidsrechters toewijzen zonder dubbelboekingen: alleen wie op dat
-  // moment vrij is; niemand vrij -> leeg laten (handmatig oplossen)
+  // moment vrij is; niemand vrij -> leeg laten (handmatig oplossen).
+  // Handmatig toegewezen scheidsrechters blijven staan.
   if (t.referees.length > 0) {
     const refFree: Record<string, string> = {};
     for (const r of t.referees) refFree[r.id] = "00:00";
@@ -88,6 +89,10 @@ export function autoSchedule(t: Tournament): Tournament {
     for (const item of chrono) {
       const m = item.match;
       if (!m.start) continue;
+      if (m.refereeId && t.referees.some((r) => r.id === m.refereeId)) {
+        refFree[m.refereeId] = addMinutes(m.start, slotLen);
+        continue;
+      }
       const candidates = t.referees.filter((r) => refFree[r.id] <= m.start!);
       if (candidates.length === 0) {
         m.refereeId = undefined;
@@ -108,13 +113,22 @@ export function autoSchedule(t: Tournament): Tournament {
  */
 export function shiftSchedule(t: Tournament, minutes: number): number {
   let count = 0;
+  let earliest: string | undefined;
   for (const d of t.divisions) {
     for (const m of allMatches(d)) {
       if (!m.start) continue;
       if (m.scoreA !== undefined && m.scoreB !== undefined) continue;
+      if (earliest === undefined || m.start < earliest) earliest = m.start;
       m.start = addMinutes(m.start, minutes);
       count++;
     }
+  }
+  // events die tussen of na de verschoven wedstrijden staan, schuiven mee;
+  // events die al geweest zijn (vóór de eerste verschoven wedstrijd) niet
+  for (const e of t.scheduleEvents ?? []) {
+    if (!e.start) continue;
+    if (earliest !== undefined && e.start < earliest) continue;
+    e.start = addMinutes(e.start, minutes);
   }
   return count;
 }

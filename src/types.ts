@@ -83,6 +83,21 @@ export interface Match {
   round?: number; // speelronde binnen poule of KO-ronde
 }
 
+/**
+ * Eventblok in het speelschema: pauze, prijsuitreiking, ceremonie...
+ * Leeft bewust op toernooiniveau (niet in de fase-boom), zodat
+ * wedstrijd-logica er nooit overheen struikelt.
+ */
+export interface ScheduleEvent {
+  id: ID;
+  kind: "pauze" | "evenement";
+  label: string;
+  durationMin: number;
+  fieldId?: ID;
+  start?: string; // "HH:MM"
+  day?: number;
+}
+
 export interface Poule {
   id: ID;
   name: string;
@@ -218,6 +233,8 @@ export interface Tournament {
   teamFields?: { present: boolean; paid: boolean; email: boolean };
   /** plattegrond van het sportpark (kantine, kleedkamers, velden) */
   venueMap?: VenueMap;
+  /** eventblokken (pauzes, prijsuitreiking) in het speelschema */
+  scheduleEvents?: ScheduleEvent[];
   /** online inschrijfpagina voor teams */
   registrationOpen?: boolean;
   registrationInfo?: string;

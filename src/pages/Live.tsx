@@ -594,6 +594,21 @@ function SchemaView({
   const onMap = new Set((t.venueMap?.blocks ?? []).map((b) => b.fieldId).filter(Boolean));
   if (rows.length === 0) return <p className="text-center text-slate-500">Nog geen speelschema.</p>;
 
+  // pauzes en evenementen verweven in de chronologische lijst
+  type Row =
+    | { kind: "match"; match: Match; division: Division }
+    | { kind: "event"; event: NonNullable<Tournament["scheduleEvents"]>[number] };
+  const merged: Row[] = [
+    ...rows.map(({ match, division }) => ({ kind: "match" as const, match, division })),
+    ...(t.scheduleEvents ?? [])
+      .filter((e) => e.start && e.fieldId)
+      .map((event) => ({ kind: "event" as const, event })),
+  ].sort((a, b) => {
+    const ta = (a.kind === "match" ? a.match.start : a.event.start) ?? "99:99";
+    const tb = (b.kind === "match" ? b.match.start : b.event.start) ?? "99:99";
+    return ta.localeCompare(tb);
+  });
+
   // per veld: de eerste niet-gespeelde wedstrijd is "nu bezig" zodra de starttijd voorbij is
   const now = nowHHMM();
   const busy = new Set<string>();
@@ -623,7 +638,23 @@ function SchemaView({
           </tr>
         </thead>
         <tbody>
-          {rows.map(({ match: m, division: d }) => {
+          {merged.map((row) => {
+            if (row.kind === "event") {
+              const e = row.event;
+              return (
+                <tr key={e.id} className="border-b border-slate-100" style={{ background: "var(--accent-soft)" }}>
+                  <td className="score px-3 py-2">{e.start}</td>
+                  <td className="px-3 py-2">{fieldName(e.fieldId)}</td>
+                  <td className="px-3 py-2" colSpan={2}>
+                    <span className="font-semibold">
+                      {e.kind === "pauze" ? "☕" : "🎉"} {e.label}
+                    </span>
+                    <span className="ml-2 text-xs text-slate-500">{e.durationMin} min</span>
+                  </td>
+                </tr>
+              );
+            }
+            const { match: m, division: d } = row;
             const done = isPlayed(m);
             const mine = involvesMyTeam(m, d);
             return (
