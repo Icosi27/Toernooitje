@@ -76,4 +76,17 @@ describe("pouleStandings", () => {
     expect(rows[0].played).toBe(0);
     expect(rows[0].points).toBe(0);
   });
+
+  it("telt een live-wedstrijd pas mee na de eindstand", () => {
+    const liveMatch = { ...match("a", "b", 2, 0), inProgress: true };
+    const p = poule(["a", "b"], [liveMatch]);
+    const during = pouleStandings(p, defaultScoring());
+    expect(during.every((r) => r.played === 0 && r.points === 0)).toBe(true);
+
+    liveMatch.inProgress = undefined as unknown as boolean; // eindstand opgeslagen
+    const after = pouleStandings(p, defaultScoring());
+    const winner = after.find((r) => r.teamId === "a")!;
+    expect(winner.points).toBe(3);
+    expect(winner.played).toBe(1);
+  });
 });

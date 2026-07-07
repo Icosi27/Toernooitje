@@ -342,6 +342,22 @@ export default function Deelnemers() {
             />
           </div>
 
+          <div className="card mb-4 flex flex-wrap items-center justify-between gap-4 p-4">
+            <div>
+              <div className="font-semibold">Live scoren tijdens de wedstrijd</div>
+              <p className="mt-1 text-xs text-slate-500">
+                {t.liveScoring
+                  ? "Scheidsrechters houden de score doelpunt voor doelpunt bij (▶ Start wedstrijd, +1-knoppen, 🏁 Eindstand). Het publiek volgt de tussenstand live; de uitslag telt pas mee na de eindstand."
+                  : "Uit = scheidsrechters voeren de uitslag achteraf in met de Opslaan-knop. Zet aan als je met je scheidsrechters afspreekt dat ze live scoren, zodat het publiek de tussenstand kan volgen."}
+              </p>
+            </div>
+            <Toggle
+              checked={!!t.liveScoring}
+              onChange={(v) => u((x) => (x.liveScoring = v))}
+              label={t.liveScoring ? "Live" : "Achteraf"}
+            />
+          </div>
+
           {t.referees.length === 0 ? (
             <EmptyState
               icon="🦺"

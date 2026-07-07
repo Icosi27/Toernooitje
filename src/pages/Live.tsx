@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { useTournament } from "../store";
 import type { Division, Match, Tournament } from "../types";
@@ -50,6 +50,38 @@ export function Bekijk() {
 /** "HH:MM" van dit moment, om te zien welke wedstrijden nú bezig zijn. */
 function nowHHMM(): string {
   return new Date().toTimeString().slice(0, 5);
+}
+
+/**
+ * Presentatiemodus op een tv: schaal de inhoud zodat álles zonder scrollen in
+ * het inhoudsvak past. transform beïnvloedt de layout niet, dus scrollHeight
+ * blijft de natuurlijke hoogte — de schaalfactor is daardoor stabiel.
+ */
+function FitToScreen({ children }: { children: React.ReactNode }) {
+  const outer = useRef<HTMLDivElement>(null);
+  const inner = useRef<HTMLDivElement>(null);
+  const [scale, setScale] = useState(1);
+  useEffect(() => {
+    const measure = () => {
+      const o = outer.current;
+      const i = inner.current;
+      if (!o || !i) return;
+      const next = Math.min(1, o.clientHeight / Math.max(1, i.scrollHeight));
+      setScale((cur) => (Math.abs(cur - next) > 0.01 ? next : cur));
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    if (outer.current) ro.observe(outer.current);
+    if (inner.current) ro.observe(inner.current);
+    return () => ro.disconnect();
+  }, []);
+  return (
+    <div ref={outer} className="h-full overflow-hidden">
+      <div ref={inner} style={{ transform: `scale(${scale})`, transformOrigin: "top center" }}>
+        {children}
+      </div>
+    </div>
+  );
 }
 
 function LiveInner({
@@ -290,7 +322,8 @@ function LiveTicker({ t }: { t: Tournament }) {
   for (const { match: m, division: d } of rows) {
     const a = slotLabel(m.a, d, t.scoring);
     const b = slotLabel(m.b, d, t.scoring);
-    if (isPlayed(m)) items.push(`${a} ${m.scoreA}–${m.scoreB} ${b}`);
+    if (m.inProgress) items.unshift(`🔴 LIVE · ${a} ${m.scoreA ?? 0}–${m.scoreB ?? 0} ${b}`);
+    else if (isPlayed(m)) items.push(`${a} ${m.scoreA}–${m.scoreB} ${b}`);
     else if (m.start) items.push(`${m.start}${m.fieldId ? ` · ${fieldName(m.fieldId)}` : ""} · ${a} — ${b}`);
     if (items.length >= 14) break;
   }
@@ -372,13 +405,20 @@ function NextMatchCard({ t, teamId }: { t: Tournament; teamId: string }) {
   return (
     <div className="card fade-in overflow-hidden">
       <div className="px-4 py-1.5 text-xs font-bold uppercase tracking-wide text-white" style={{ background: "var(--accent)" }}>
-        {next ? "Jullie volgende wedstrijd" : "Alle wedstrijden gespeeld"}
+        {next ? (next.match.inProgress ? "🔴 Jullie spelen nu" : "Jullie volgende wedstrijd") : "Alle wedstrijden gespeeld"}
       </div>
       {next && (
         <div className="flex flex-wrap items-center gap-x-6 gap-y-1 p-4">
-          <span className="score text-3xl font-black" style={{ color: "var(--accent)" }}>
-            {next.match.start ?? "—"}
-          </span>
+          {next.match.inProgress ? (
+            <span className="score flex items-center gap-2 text-3xl font-black text-red-500">
+              <span className="live-dot inline-block h-3 w-3 rounded-full bg-red-500" />
+              {next.match.scoreA ?? 0}–{next.match.scoreB ?? 0}
+            </span>
+          ) : (
+            <span className="score text-3xl font-black" style={{ color: "var(--accent)" }}>
+              {next.match.start ?? "—"}
+            </span>
+          )}
           <div className="min-w-0">
             <div className="font-semibold">
               {slotLabel(next.match.a, next.division, t.scoring)} — {slotLabel(next.match.b, next.division, t.scoring)}
@@ -609,11 +649,17 @@ function SchemaView({
     return ta.localeCompare(tb);
   });
 
-  // per veld: de eerste niet-gespeelde wedstrijd is "nu bezig" zodra de starttijd voorbij is
+  // live gescoorde wedstrijden zijn zeker bezig; anders per veld de eerste
+  // niet-gespeelde wedstrijd zodra de starttijd voorbij is (tijd-heuristiek)
   const now = nowHHMM();
   const busy = new Set<string>();
   const seenField = new Set<string>();
   for (const { match: m } of rows) {
+    if (m.inProgress) {
+      busy.add(m.id);
+      if (m.fieldId) seenField.add(m.fieldId);
+      continue;
+    }
     if (isPlayed(m) || !m.start || !m.fieldId || seenField.has(m.fieldId)) continue;
     seenField.add(m.fieldId);
     if (m.start <= now) busy.add(m.id);
@@ -699,7 +745,16 @@ function SchemaView({
                   )}
                 </td>
                 <td className="score px-3 py-2 text-center font-bold">
-                  {done ? `${m.scoreA} – ${m.scoreB}` : ""}
+                  {m.inProgress ? (
+                    <span className="flex items-center justify-center gap-1.5" style={{ color: "var(--accent)" }}>
+                      <span className="live-dot inline-block h-1.5 w-1.5 rounded-full bg-red-500" />
+                      {m.scoreA ?? 0} – {m.scoreB ?? 0}
+                    </span>
+                  ) : done ? (
+                    `${m.scoreA} – ${m.scoreB}`
+                  ) : (
+                    ""
+                  )}
                 </td>
               </tr>
             );

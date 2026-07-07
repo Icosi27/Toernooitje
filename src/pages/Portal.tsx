@@ -101,7 +101,7 @@ function CloudPortal({ id, refId }: { id?: string; refId?: string }) {
       status={status}
       onRetry={(matchId) => {
         const p = pending[matchId];
-        if (p) save(matchId, p.a, p.b);
+        if (p) save(matchId, p.a, p.b, p.live ?? false);
       }}
       cloud
     />
@@ -118,11 +118,12 @@ function PortalView({
 }: {
   t: Tournament;
   refId?: string;
-  onSave: (matchId: string, a: number | undefined, b: number | undefined) => void;
+  onSave: (matchId: string, a: number | undefined, b: number | undefined, live: boolean) => void;
   status: Record<string, SaveState>;
   onRetry?: (matchId: string) => void;
   cloud?: boolean;
 }) {
+  const liveMode = !!t.liveScoring;
   const [showDone, setShowDone] = useState(false);
   // de link kan van een scheidsrechter zijn, of van een team dat fluit
   const referee = refId ? t.referees.find((r) => r.id === refId) : undefined;
@@ -198,6 +199,7 @@ function PortalView({
             <PortalRow
               key={m.id}
               highlight={i === 0}
+              liveMode={liveMode}
               start={m.start}
               field={fieldName(m.fieldId)}
               division={t.divisions.length > 1 ? d.name : undefined}
@@ -206,7 +208,7 @@ function PortalView({
               m={m}
               state={status[m.id]}
               onRetry={onRetry ? () => onRetry(m.id) : undefined}
-              onSave={(a, b) => onSave(m.id, a, b)}
+              onSave={(a, b, live) => onSave(m.id, a, b, live)}
             />
           ))}
         </div>
@@ -236,7 +238,7 @@ function PortalView({
                     m={m}
                     state={status[m.id]}
                     onRetry={onRetry ? () => onRetry(m.id) : undefined}
-                    onSave={(a, b) => onSave(m.id, a, b)}
+                    onSave={(a, b, live) => onSave(m.id, a, b, live)}
                   />
                 ))}
               </div>
@@ -257,6 +259,7 @@ function PortalRow({
   m,
   state,
   highlight = false,
+  liveMode = false,
   onRetry,
   onSave,
 }: {
@@ -268,8 +271,9 @@ function PortalRow({
   m: Match;
   state?: SaveState;
   highlight?: boolean;
+  liveMode?: boolean;
   onRetry?: () => void;
-  onSave: (a: number | undefined, b: number | undefined) => void;
+  onSave: (a: number | undefined, b: number | undefined, live: boolean) => void;
 }) {
   const played = isPlayed(m);
   // concept-invoer: pas doorgevoerd na een druk op Opslaan
@@ -287,9 +291,115 @@ function PortalRow({
   const commit = () => {
     if (!draft) return;
     const parse = (v: string) => (v === "" ? undefined : Math.max(0, +v));
-    onSave(parse(draft.a), parse(draft.b));
+    onSave(parse(draft.a), parse(draft.b), false);
     setDraft(null);
   };
+
+  // ---- live scoren: doelpunt voor doelpunt, direct zichtbaar voor iedereen ----
+  if (liveMode && !played) {
+    const live = !!m.inProgress;
+    const sa = m.scoreA ?? 0;
+    const sb = m.scoreB ?? 0;
+    const goal = (side: "a" | "b", delta: number) =>
+      onSave(
+        Math.max(0, sa + (side === "a" ? delta : 0)),
+        Math.max(0, sb + (side === "b" ? delta : 0)),
+        true
+      );
+    return (
+      <div
+        className="card p-3"
+        style={
+          live
+            ? { boxShadow: "0 0 0 2px #ef4444" }
+            : highlight
+              ? { boxShadow: "0 0 0 2px var(--accent)" }
+              : undefined
+        }
+      >
+        <div className="mb-1 flex flex-wrap items-center gap-3 text-xs text-slate-400">
+          {live ? (
+            <span className="flex items-center gap-1.5 font-bold uppercase text-red-500">
+              <span className="live-dot inline-block h-2 w-2 rounded-full bg-red-500" /> Live
+            </span>
+          ) : (
+            highlight && (
+              <span className="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase text-white" style={{ background: "var(--accent)" }}>
+                Volgende wedstrijd
+              </span>
+            )
+          )}
+          {start && <span className="score">🕐 {start}</span>}
+          {field && <span>🟩 {field}</span>}
+          {division && <span>{division}</span>}
+          {m.label && <span>{m.label}</span>}
+          <span className="ml-auto">
+            {state === "saving" && <span className="text-slate-400">↻ opslaan…</span>}
+            {state === "saved" && <span className="text-green-600">✓</span>}
+            {state === "error" && (
+              <button className="cursor-pointer font-semibold text-red-600 underline" onClick={onRetry}>
+                ⚠ opnieuw
+              </button>
+            )}
+          </span>
+        </div>
+
+        {!live ? (
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="min-w-0 flex-1 truncate text-base font-medium">
+              {a} <span className="text-slate-400">—</span> {b}
+            </span>
+            <button className="btn-primary shrink-0" onClick={() => onSave(0, 0, true)}>
+              ▶ Start wedstrijd
+            </button>
+          </div>
+        ) : (
+          <>
+            <div className="flex items-center gap-3">
+              {(
+                [
+                  { name: a, score: sa, side: "a" as const },
+                  { name: b, score: sb, side: "b" as const },
+                ]
+              ).map((x, i) => (
+                <div key={i} className="flex flex-1 flex-col items-center gap-1.5">
+                  <span className="max-w-full truncate text-sm font-medium">{x.name}</span>
+                  <span className="score text-4xl font-black" style={{ color: "var(--accent)" }}>
+                    {x.score}
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      className="h-12 w-16 cursor-pointer rounded-xl text-xl font-black text-white shadow active:scale-95"
+                      style={{ background: "var(--accent)" }}
+                      onClick={() => goal(x.side, 1)}
+                    >
+                      +1
+                    </button>
+                    <button
+                      className="h-8 w-8 cursor-pointer rounded-lg bg-slate-200 text-sm font-bold text-slate-600 active:scale-95"
+                      title="Correctie: doelpunt eraf"
+                      onClick={() => goal(x.side, -1)}
+                    >
+                      −1
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <button
+              className="btn-outline mt-3 w-full"
+              onClick={() => {
+                if (confirm(`Eindstand ${sa} – ${sb} opslaan? De uitslag telt dan mee in de stand.`))
+                  onSave(sa, sb, false);
+              }}
+            >
+              🏁 Eindstand opslaan ({sa} – {sb})
+            </button>
+          </>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div
