@@ -3,6 +3,7 @@ import type { Division } from "../types";
 import { defaultScoring } from "../types";
 import { buildFormat, seedKnockoutWithTeams } from "./formats";
 import {
+  activeStage,
   bracketReadiness,
   gatedMatchIds,
   pouleRankOptions,
@@ -106,6 +107,17 @@ describe("startBracketStage", () => {
     playPoules(d);
     expect(startBracketStage(d, d.stages[1].id, defaultScoring())).toBe(true);
     expect(startBracketStage(d, d.stages[1].id, defaultScoring())).toBe(false);
+  });
+});
+
+describe("activeStage", () => {
+  it("wijst de lopende groepsfase aan en daarna de knock-out", () => {
+    const d = wkDivision();
+    expect(activeStage(d)?.type).toBe("poules");
+    playPoules(d, 1);
+    expect(activeStage(d)?.type).toBe("poules"); // nog 1 uitslag open
+    playPoules(d);
+    expect(activeStage(d)?.type).toBe("bracket"); // ook al is die nog niet gestart
   });
 });
 

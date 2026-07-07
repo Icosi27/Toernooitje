@@ -7,14 +7,31 @@ import { isPlayed, pouleStandings } from "./standings";
  * worden de poule-plaatsingen ("Nr. 1 Poule A") omgezet in echte teams.
  */
 
+/** Alle wedstrijden van één fase. */
+export function stageMatches(s: Stage) {
+  return s.type === "poules"
+    ? s.poules.flatMap((p) => p.matches)
+    : s.type === "bracket"
+      ? s.rounds.flatMap((r) => r.matches)
+      : s.rounds.flat();
+}
+
 export function stageProgress(s: Stage): { done: number; total: number } {
-  const matches =
-    s.type === "poules"
-      ? s.poules.flatMap((p) => p.matches)
-      : s.type === "bracket"
-        ? s.rounds.flatMap((r) => r.matches)
-        : s.rounds.flat();
+  const matches = stageMatches(s);
   return { done: matches.filter(isPlayed).length, total: matches.length };
+}
+
+/**
+ * De fase die nú aan de gang is: de eerste met nog ontbrekende uitslagen
+ * (een afgeronde groepsfase schuift dus door naar de knock-out, ook als die
+ * nog niet gestart is), anders de laatste fase (eindstand).
+ */
+export function activeStage(d: Division): Stage | undefined {
+  for (const s of d.stages) {
+    const p = stageProgress(s);
+    if (p.total === 0 || p.done < p.total) return s;
+  }
+  return d.stages[d.stages.length - 1];
 }
 
 /** Uit welke poules haalt deze bracket zijn teams? */

@@ -6,6 +6,7 @@ import { isPlayed, pouleStandings } from "../logic/standings";
 import { individualStandings } from "../logic/individual";
 import { qualifyingRanks, resolveSlot, slotLabel, winnerOf } from "../logic/resolve";
 import { addMinutes, scheduledMatches } from "../logic/schedule";
+import { activeStage, stageMatches } from "../logic/phases";
 import { copyText, decodeShare } from "../logic/share";
 import { useCloudTournament } from "../logic/cloud";
 import { AdBlock, DonateButton } from "../components/monetization";
@@ -53,9 +54,10 @@ function nowHHMM(): string {
 }
 
 /**
- * Presentatiemodus op een tv: schaal de inhoud zodat álles zonder scrollen in
- * het inhoudsvak past. transform beïnvloedt de layout niet, dus scrollHeight
- * blijft de natuurlijke hoogte — de schaalfactor is daardoor stabiel.
+ * Presentatiemodus op een tv: schaal de inhoud zodat die het inhoudsvak vúlt —
+ * omhoog bij weinig inhoud, omlaag als het anders niet past. De binnenbak
+ * krijgt breedte 100%/schaal zodat de geschaalde inhoud precies de volle
+ * breedte beslaat; de ResizeObserver laat de meting convergeren.
  */
 function FitToScreen({ children }: { children: React.ReactNode }) {
   const outer = useRef<HTMLDivElement>(null);
@@ -66,8 +68,8 @@ function FitToScreen({ children }: { children: React.ReactNode }) {
       const o = outer.current;
       const i = inner.current;
       if (!o || !i) return;
-      const next = Math.min(1, o.clientHeight / Math.max(1, i.scrollHeight));
-      setScale((cur) => (Math.abs(cur - next) > 0.01 ? next : cur));
+      const next = Math.min(1.6, Math.max(0.55, o.clientHeight / Math.max(1, i.scrollHeight)));
+      setScale((cur) => (Math.abs(cur - next) > 0.02 ? next : cur));
     };
     measure();
     const ro = new ResizeObserver(measure);
@@ -77,7 +79,14 @@ function FitToScreen({ children }: { children: React.ReactNode }) {
   }, []);
   return (
     <div ref={outer} className="h-full overflow-hidden">
-      <div ref={inner} style={{ transform: `scale(${scale})`, transformOrigin: "top center" }}>
+      <div
+        ref={inner}
+        style={{
+          width: `${100 / scale}%`,
+          transform: `scale(${scale})`,
+          transformOrigin: "top left",
+        }}
+      >
         {children}
       </div>
     </div>
@@ -96,6 +105,7 @@ function LiveInner({
   const [params] = useSearchParams();
   const [page, setPage] = useState<Page>("standen");
   const [slideshow, setSlideshow] = useState(false);
+  const [slideIdx, setSlideIdx] = useState(0);
   const [myTeam, setMyTeam] = useState<string>("");
   const [copied, setCopied] = useState(false);
   // veld dat vanuit het schema is aangetikt (pin op de plattegrond)
@@ -103,6 +113,10 @@ function LiveInner({
 
   const goToPage = (p: Page) => {
     if (p !== "plattegrond") setPinnedField(null);
+    if (slideshow) {
+      const i = slides.findIndex((s) => s.page === p);
+      if (i >= 0) setSlideIdx(i);
+    }
     setPage(p);
   };
   const showFieldOnMap = (fieldId: string) => {
@@ -136,13 +150,40 @@ function LiveInner({
     return p.length ? p : (["standen"] as Page[]);
   }, [t]);
 
+  // presentatie: standen opgeknipt in dia's per divisie (max 2 poules per dia),
+  // zodat elke dia groot en leesbaar is
+  const slides = useMemo(() => {
+    if (!t) return [] as { page: Page; divId?: string; chunk?: number }[];
+    const out: { page: Page; divId?: string; chunk?: number }[] = [];
+    for (const p of pages) {
+      if (p !== "standen") {
+        out.push({ page: p });
+        continue;
+      }
+      const divs = t.divisions.filter((d) => d.stages.length > 0);
+      if (divs.length === 0) {
+        out.push({ page: p });
+        continue;
+      }
+      for (const d of divs) {
+        const s = activeStage(d);
+        if (s?.type === "poules" && s.poules.length > 2) {
+          for (let c = 0; c < Math.ceil(s.poules.length / 2); c++)
+            out.push({ page: p, divId: d.id, chunk: c });
+        } else {
+          out.push({ page: p, divId: d.id });
+        }
+      }
+    }
+    return out;
+  }, [pages, t]);
+  const slide = slides.length ? slides[slideIdx % slides.length] : undefined;
+
   useEffect(() => {
     if (!slideshow || !t) return;
-    const iv = setInterval(() => {
-      setPage((cur) => pages[(pages.indexOf(cur) + 1) % pages.length]);
-    }, t.presentation.slideSeconds * 1000);
+    const iv = setInterval(() => setSlideIdx((cur) => cur + 1), t.presentation.slideSeconds * 1000);
     return () => clearInterval(iv);
-  }, [slideshow, pages, t]);
+  }, [slideshow, t]);
 
   if (!t)
     return (
@@ -211,9 +252,9 @@ function LiveInner({
               key={p}
               onClick={() => goToPage(p)}
               className={`cursor-pointer rounded-full px-4 py-1.5 text-sm font-semibold ${
-                page === p ? "bg-white" : "bg-white/20 text-white hover:bg-white/30"
+                (slideshow ? slide?.page : page) === p ? "bg-white" : "bg-white/20 text-white hover:bg-white/30"
               }`}
-              style={page === p ? { color: t.presentation.accentColor } : undefined}
+              style={(slideshow ? slide?.page : page) === p ? { color: t.presentation.accentColor } : undefined}
             >
               {labels[p]}
             </button>
@@ -315,15 +356,30 @@ function LiveInner({
             )}
           </>
         );
-        return slideshow ? (
-          // tv-modus: inhoudsvak vult de rest van het scherm, inhoud schaalt tot hij past
+        if (!slideshow) return <main className="mx-auto max-w-4xl space-y-8 px-4 py-8">{inhoud}</main>;
+
+        // tv-modus: één dia tegelijk (alleen de actieve fase), gevuld scherm
+        const presDiv = t.divisions.find((dd) => dd.id === slide?.divId) ?? t.divisions[0];
+        return (
           <main className="min-h-0 w-full flex-1 overflow-hidden px-4 py-4">
-            <FitToScreen key={page}>
-              <div className="mx-auto max-w-6xl space-y-8">{inhoud}</div>
+            <FitToScreen key={`${slide?.page}-${slide?.divId ?? ""}-${slide?.chunk ?? ""}`}>
+              <div className="mx-auto max-w-6xl space-y-6">
+                <AdBlock t={t} />
+                {slide?.page === "toernooi" && <ToernooiInfo t={t} />}
+                {slide?.page === "standen" && presDiv && (
+                  <>
+                    <ChampionBanner t={t} d={presDiv} />
+                    <Standen t={t} d={presDiv} myTeam={myTeam} onlyActive pouleChunk={slide.chunk} />
+                  </>
+                )}
+                {slide?.page === "schema" && <SchemaView t={t} myTeam={myTeam} pres />}
+                {slide?.page === "plattegrond" && (
+                  <VenueMapView t={t} highlightFieldId={pinnedField ?? nextFieldFor(t, myTeam)} />
+                )}
+                <AdBlock t={t} slot={1} />
+              </div>
             </FitToScreen>
           </main>
-        ) : (
-          <main className="mx-auto max-w-4xl space-y-8 px-4 py-8">{inhoud}</main>
         );
       })()}
     </div>
@@ -513,17 +569,35 @@ function ToernooiInfo({ t }: { t: Tournament }) {
   );
 }
 
-function Standen({ t, d, myTeam }: { t: Tournament; d: Division; myTeam?: string }) {
+function Standen({
+  t,
+  d,
+  myTeam,
+  onlyActive,
+  pouleChunk,
+}: {
+  t: Tournament;
+  d: Division;
+  myTeam?: string;
+  /** presentatie: toon alleen de fase die nu bezig is */
+  onlyActive?: boolean;
+  /** presentatie: toon alleen poule 2c en 2c+1 van de actieve fase */
+  pouleChunk?: number;
+}) {
   const teamName = (id: string) => d.teams.find((tm) => tm.id === id)?.name ?? "?";
   if (d.stages.length === 0) return null;
+  const act = onlyActive ? activeStage(d) : undefined;
+  const stages = onlyActive ? (act ? [act] : []) : d.stages;
 
   return (
     <div className="fade-in">
       {t.divisions.length > 1 && <h2 className="mb-3 text-xl font-bold">{d.name}</h2>}
       <div className="grid gap-4 md:grid-cols-2">
-        {d.stages.map((s) => {
-          if (s.type === "poules")
-            return s.poules.map((p) => {
+        {stages.map((s) => {
+          if (s.type === "poules") {
+            const shown =
+              pouleChunk !== undefined ? s.poules.slice(pouleChunk * 2, pouleChunk * 2 + 2) : s.poules;
+            return shown.map((p) => {
               const qual = qualifyingRanks(d, p.id);
               const maxQual = qual.length > 0 ? Math.max(...qual) : 0;
               return (
@@ -576,6 +650,7 @@ function Standen({ t, d, myTeam }: { t: Tournament; d: Division; myTeam?: string
                 </div>
               );
             });
+          }
           if (s.type === "bracket")
             return (
               <div key={s.id} className="card p-4 md:col-span-2">
@@ -645,30 +720,28 @@ function SchemaView({
   t,
   myTeam,
   onFieldClick,
+  pres,
 }: {
   t: Tournament;
   myTeam?: string;
   onFieldClick?: (fieldId: string) => void;
+  /** presentatie: alleen actieve fases, geen gespeelde wedstrijden, max 12 rijen */
+  pres?: boolean;
 }) {
-  const rows = scheduledMatches(t);
+  let rows = scheduledMatches(t);
   const fieldName = (id?: string) => t.fields.find((f) => f.id === id)?.name ?? "—";
   const onMap = new Set((t.venueMap?.blocks ?? []).map((b) => b.fieldId).filter(Boolean));
   if (rows.length === 0) return <p className="text-center text-slate-500">Nog geen speelschema.</p>;
 
-  // pauzes en evenementen verweven in de chronologische lijst
-  type Row =
-    | { kind: "match"; match: Match; division: Division }
-    | { kind: "event"; event: NonNullable<Tournament["scheduleEvents"]>[number] };
-  const merged: Row[] = [
-    ...rows.map(({ match, division }) => ({ kind: "match" as const, match, division })),
-    ...(t.scheduleEvents ?? [])
-      .filter((e) => e.start && e.fieldId)
-      .map((event) => ({ kind: "event" as const, event })),
-  ].sort((a, b) => {
-    const ta = (a.kind === "match" ? a.match.start : a.event.start) ?? "99:99";
-    const tb = (b.kind === "match" ? b.match.start : b.event.start) ?? "99:99";
-    return ta.localeCompare(tb);
-  });
+  // presentatie: alleen wedstrijden van de fase die nu bezig is
+  if (pres) {
+    const activeIds = new Set<string>();
+    for (const d of t.divisions) {
+      const s = activeStage(d);
+      if (s) for (const m of stageMatches(s)) activeIds.add(m.id);
+    }
+    rows = rows.filter((r) => activeIds.has(r.match.id));
+  }
 
   // live gescoorde wedstrijden zijn zeker bezig; anders per veld de eerste
   // niet-gespeelde wedstrijd zodra de starttijd voorbij is (tijd-heuristiek)
@@ -685,6 +758,27 @@ function SchemaView({
     seenField.add(m.fieldId);
     if (m.start <= now) busy.add(m.id);
   }
+
+  // presentatie: gespeelde wedstrijden eruit (behalve bezig), en aftoppen
+  if (pres) rows = rows.filter((r) => !isPlayed(r.match) || busy.has(r.match.id)).slice(0, 12);
+
+  // pauzes en evenementen verweven in de chronologische lijst
+  type Row =
+    | { kind: "match"; match: Match; division: Division }
+    | { kind: "event"; event: NonNullable<Tournament["scheduleEvents"]>[number] };
+  const merged: Row[] = [
+    ...rows.map(({ match, division }) => ({ kind: "match" as const, match, division })),
+    ...(t.scheduleEvents ?? [])
+      .filter((e) => e.start && e.fieldId)
+      .filter((e) => !pres || addMinutes(e.start!, e.durationMin) >= now)
+      .map((event) => ({ kind: "event" as const, event })),
+  ].sort((a, b) => {
+    const ta = (a.kind === "match" ? a.match.start : a.event.start) ?? "99:99";
+    const tb = (b.kind === "match" ? b.match.start : b.event.start) ?? "99:99";
+    return ta.localeCompare(tb);
+  });
+  if (pres && merged.length === 0)
+    return <p className="text-center text-slate-500">Alle wedstrijden zijn gespeeld 🎉</p>;
 
   const involvesMyTeam = (m: Match, d: Division) => {
     if (!myTeam) return false;
