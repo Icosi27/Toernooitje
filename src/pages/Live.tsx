@@ -1,19 +1,34 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useParams, useSearchParams } from "react-router-dom";
 import { useTournament } from "../store";
 import type { Division, Tournament } from "../types";
 import { pouleStandings } from "../logic/standings";
 import { individualStandings } from "../logic/individual";
 import { slotLabel } from "../logic/resolve";
 import { scheduledMatches } from "../logic/schedule";
+import { decodeShare } from "../logic/share";
 import { AdBlock, DonateButton } from "../components/monetization";
 
 type Page = "toernooi" | "standen" | "schema";
 
-/** Publieke toernooiwebsite + diavoorstelling. */
+/** Publieke toernooiwebsite + diavoorstelling (op het apparaat van de organisator). */
 export default function Live() {
   const { id } = useParams();
   const t = useTournament(id);
+  return <LiveInner t={t} />;
+}
+
+/** Gedeelde weergave: het toernooi zit gecomprimeerd in de link zelf (momentopname). */
+export function Bekijk() {
+  const [params] = useSearchParams();
+  const t = useMemo(() => {
+    const d = params.get("d");
+    return d ? (decodeShare(d) ?? undefined) : undefined;
+  }, [params]);
+  return <LiveInner t={t} shared />;
+}
+
+function LiveInner({ t, shared = false }: { t: Tournament | undefined; shared?: boolean }) {
   const [page, setPage] = useState<Page>("standen");
   const [slideshow, setSlideshow] = useState(false);
 
@@ -37,7 +52,8 @@ export default function Live() {
   if (!t)
     return (
       <div className="p-10 text-center">
-        Toernooi niet gevonden. <Link to="/" className="underline">Naar home</Link>
+        {shared ? "Ongeldige of verlopen deellink." : "Toernooi niet gevonden."}{" "}
+        <Link to="/" className="underline">Naar home</Link>
       </div>
     );
 
@@ -62,7 +78,7 @@ export default function Live() {
             </p>
           </div>
           <DonateButton />
-          <Link to={`/t/${t.id}`} className="text-xs underline opacity-70">beheer</Link>
+          {!shared && <Link to={`/t/${t.id}`} className="text-xs underline opacity-70">beheer</Link>}
         </div>
         <nav className="mx-auto mt-6 flex max-w-4xl gap-2">
           {pages.map((p) => (
@@ -90,6 +106,11 @@ export default function Live() {
       </header>
 
       <main className="mx-auto max-w-4xl space-y-8 px-4 py-8">
+        {shared && (
+          <p className="rounded bg-slate-100 px-3 py-2 text-center text-xs text-slate-500">
+            Gedeelde momentopname — vraag de organisator om een nieuwe link voor de laatste stand.
+          </p>
+        )}
         <AdBlock t={t} />
 
         {page === "toernooi" && <ToernooiInfo t={t} />}

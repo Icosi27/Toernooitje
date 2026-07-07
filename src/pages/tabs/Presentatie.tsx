@@ -1,8 +1,10 @@
+import { useState } from "react";
 import { Link, useOutletContext } from "react-router-dom";
 import type { Tournament } from "../../types";
 import { useApp } from "../../store";
 import { Section, Toggle } from "../../components/ui";
 import { DONATE_URL } from "../../components/monetization";
+import { appUrl, copyText, encodeShare } from "../../logic/share";
 import { uid } from "../../logic/id";
 
 function fileToDataUrl(file: File): Promise<string> {
@@ -19,6 +21,14 @@ export default function Presentatie() {
   const update = useApp((s) => s.updateTournament);
   const u = (fn: (t: Tournament) => void) => update(t.id, fn);
   const p = t.presentation;
+  const [copied, setCopied] = useState<string | null>(null);
+
+  const copy = async (key: string, url: string) => {
+    if (await copyText(url)) {
+      setCopied(key);
+      setTimeout(() => setCopied(null), 2000);
+    }
+  };
 
   return (
     <div className="mx-auto max-w-2xl">
@@ -37,6 +47,41 @@ export default function Presentatie() {
           <Link to={`/live/${t.id}`} className="btn-primary shrink-0">Open website</Link>
         </div>
       </div>
+
+      <Section title="Delen" subtitle="Laat deelnemers de standen en het schema bekijken" defaultOpen>
+        <div className="space-y-3">
+          <div className="card flex items-center justify-between gap-4 p-4">
+            <div>
+              <div className="font-semibold">Deellink voor deelnemers</div>
+              <p className="mt-1 text-xs text-slate-500">
+                Stuur deze link via WhatsApp of mail. De volledige stand zit in de link zelf
+                (momentopname) — kopieer hem opnieuw nadat je uitslagen hebt ingevuld.
+              </p>
+            </div>
+            <button
+              className="btn-primary shrink-0"
+              onClick={() => copy("share", appUrl(`/bekijk?d=${encodeShare(t)}`))}
+            >
+              {copied === "share" ? "✓ Gekopieerd" : "Kopieer link"}
+            </button>
+          </div>
+          <div className="card flex items-center justify-between gap-4 p-4">
+            <div>
+              <div className="font-semibold">Invoerlink uitslagen (beheerders)</div>
+              <p className="mt-1 text-xs text-slate-500">
+                Simpele pagina om alleen uitslagen in te vullen — handig op dit apparaat aan de
+                wedstrijdtafel. Werkt op andere telefoons zodra online synchronisatie er is.
+              </p>
+            </div>
+            <button
+              className="btn-outline shrink-0"
+              onClick={() => copy("entry", appUrl(`/invoer/${t.id}`))}
+            >
+              {copied === "entry" ? "✓ Gekopieerd" : "Kopieer link"}
+            </button>
+          </div>
+        </div>
+      </Section>
 
       <Section title="Pagina's" subtitle="Wat is zichtbaar op de publieke website" defaultOpen>
         <div className="grid grid-cols-2 gap-3">

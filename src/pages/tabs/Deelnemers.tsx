@@ -3,6 +3,7 @@ import { useOutletContext } from "react-router-dom";
 import type { Tournament } from "../../types";
 import { useApp } from "../../store";
 import { EmptyState, Modal, ModalActions, Toggle } from "../../components/ui";
+import { appUrl, copyText } from "../../logic/share";
 import { uid } from "../../logic/id";
 
 type Tab = "teams" | "scheidsrechters" | "beheerders";
@@ -19,6 +20,14 @@ export default function Deelnemers() {
   const [bulkMode, setBulkMode] = useState(false);
   const [emailInput, setEmailInput] = useState("");
   const [playerTeamId, setPlayerTeamId] = useState<string | null>(null);
+  const [copied, setCopied] = useState<string | null>(null);
+
+  const copy = async (key: string, url: string) => {
+    if (await copyText(url)) {
+      setCopied(key);
+      setTimeout(() => setCopied(null), 2000);
+    }
+  };
 
   const div = t.divisions[Math.min(divIdx, t.divisions.length - 1)];
 
@@ -199,6 +208,13 @@ export default function Deelnemers() {
                       onChange={(e) => u((x) => (x.referees.find((y) => y.id === r.id)!.name = e.target.value))}
                     />
                     <button
+                      className="btn-ghost text-xs"
+                      title="Inloglink: pagina waar deze scheidsrechter zijn uitslagen invult"
+                      onClick={() => copy(r.id, appUrl(`/scheids/${t.id}/${r.id}`))}
+                    >
+                      {copied === r.id ? "✓ gekopieerd" : "🔗 inloglink"}
+                    </button>
+                    <button
                       className="btn-ghost text-red-500"
                       onClick={() => u((x) => (x.referees = x.referees.filter((y) => y.id !== r.id)))}
                     >
@@ -243,6 +259,13 @@ export default function Deelnemers() {
                       <option value="volledig">Volledige rechten</option>
                       <option value="uitslagen">Alleen uitslagen</option>
                     </select>
+                    <button
+                      className="btn-ghost text-xs"
+                      title="Invoerlink: pagina om uitslagen in te vullen"
+                      onClick={() => copy(a.id, appUrl(`/invoer/${t.id}`))}
+                    >
+                      {copied === a.id ? "✓ gekopieerd" : "🔗 invoerlink"}
+                    </button>
                     <button
                       className="btn-ghost text-red-500"
                       onClick={() => u((x) => (x.admins = x.admins.filter((y) => y.id !== a.id)))}

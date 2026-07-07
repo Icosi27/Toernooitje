@@ -11,7 +11,8 @@ import Indeling from "./pages/tabs/Indeling";
 import Schema from "./pages/tabs/Schema";
 import Presentatie from "./pages/tabs/Presentatie";
 import Resultaten from "./pages/tabs/Resultaten";
-import Live from "./pages/Live";
+import Live, { Bekijk } from "./pages/Live";
+import Portal from "./pages/Portal";
 
 const router = createHashRouter([
   { path: "/", element: <Home /> },
@@ -29,6 +30,9 @@ const router = createHashRouter([
     ],
   },
   { path: "/live/:id", element: <Live /> },
+  { path: "/bekijk", element: <Bekijk /> },
+  { path: "/invoer/:id", element: <Portal /> },
+  { path: "/scheids/:id/:refId", element: <Portal /> },
 ]);
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
