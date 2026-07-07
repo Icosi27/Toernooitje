@@ -2,18 +2,40 @@ import type { MapBlock, Tournament } from "../types";
 import { uid } from "./id";
 
 /**
- * Splitst een fysiek veld in 2 of 4 speelveldjes — voor 7x7 (helften) of
- * 4x4 (kwarten). Elk deel is daarna een eigen beplanbaar veld met een eigen
- * programmakolom. Het originele veld wordt deel "A" en behoudt zijn id, dus
- * al geplande wedstrijden en scheidsrechter-voorkeuren blijven kloppen.
- * Staat het veld op de plattegrond, dan wordt het blok in gelijke delen
- * opgedeeld.
+ * Kies voor `parts` veldjes het raster (kolommen x rijen) waarvan de cellen
+ * het meest op een echt veld lijken (breedte:hoogte ~ 1,4), met een straf
+ * voor lege rastercellen bij aantallen als 5 of 7.
  */
-export function splitField(t: Tournament, fieldId: string, parts: 2 | 4): void {
+export function bestGrid(w: number, h: number, parts: number): { cols: number; rows: number } {
+  let best = { cols: parts, rows: 1 };
+  let bestScore = Infinity;
+  for (let rows = 1; rows <= parts; rows++) {
+    const cols = Math.ceil(parts / rows);
+    const cellAspect = w / cols / (h / rows);
+    const leftover = cols * rows - parts;
+    const score = Math.abs(Math.log(cellAspect / 1.4)) + leftover * 0.35;
+    if (score < bestScore) {
+      bestScore = score;
+      best = { cols, rows };
+    }
+  }
+  return best;
+}
+
+/**
+ * Splitst een fysiek veld in `parts` speelveldjes (2 t/m 12) — helften voor
+ * 7x7, kwarten voor 4x4, of nog kleiner (6, 8, ... mini-veldjes). Elk deel is
+ * daarna een eigen beplanbaar veld met een eigen programmakolom. Het
+ * originele veld wordt deel "A" en behoudt zijn id, dus al geplande
+ * wedstrijden en scheidsrechter-voorkeuren blijven kloppen. Staat het veld op
+ * de plattegrond, dan wordt het blok in een gelijk raster opgedeeld.
+ */
+export function splitField(t: Tournament, fieldId: string, parts: number): void {
+  parts = Math.max(2, Math.min(12, Math.round(parts)));
   const idx = t.fields.findIndex((f) => f.id === fieldId);
   if (idx < 0) return;
   const orig = t.fields[idx];
-  const letters = ["A", "B", "C", "D"];
+  const letters = "ABCDEFGHIJKL".split("");
   const baseName = orig.name;
   const subIds = [orig.id, ...Array.from({ length: parts - 1 }, () => uid())];
 
@@ -31,28 +53,23 @@ export function splitField(t: Tournament, fieldId: string, parts: 2 | 4): void {
     if (r.fieldIds?.includes(orig.id)) r.fieldIds = [...r.fieldIds, ...subIds.slice(1)];
   }
 
-  // plattegrond: het veldblok in gelijke delen knippen
+  // plattegrond: het veldblok in een gelijk raster knippen
   const blocks = t.venueMap?.blocks;
   if (!blocks) return;
   const bi = blocks.findIndex((b) => b.kind === "field" && b.fieldId === orig.id);
   if (bi < 0) return;
   const b = blocks[bi];
-  const halves = (r: Pick<MapBlock, "x" | "y" | "w" | "h">) =>
-    r.w >= r.h
-      ? [
-          { x: r.x, y: r.y, w: r.w / 2, h: r.h },
-          { x: r.x + r.w / 2, y: r.y, w: r.w / 2, h: r.h },
-        ]
-      : [
-          { x: r.x, y: r.y, w: r.w, h: r.h / 2 },
-          { x: r.x, y: r.y + r.h / 2, w: r.w, h: r.h / 2 },
-        ];
-  const cells = parts === 2 ? halves(b) : halves(b).flatMap((h) => halves(h));
-  const newBlocks: MapBlock[] = cells.map((c, i) => ({
+  const { cols, rows } = bestGrid(b.w, b.h, parts);
+  const cellW = b.w / cols;
+  const cellH = b.h / rows;
+  const newBlocks: MapBlock[] = subIds.map((fid, i) => ({
     id: i === 0 ? b.id : uid(),
     kind: "field",
-    fieldId: subIds[i],
-    ...c,
+    fieldId: fid,
+    x: b.x + (i % cols) * cellW,
+    y: b.y + Math.floor(i / cols) * cellH,
+    w: cellW,
+    h: cellH,
   }));
   blocks.splice(bi, 1, ...newBlocks);
 }

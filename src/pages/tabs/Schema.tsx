@@ -86,6 +86,7 @@ export default function Schema() {
   const [fieldModal, setFieldModal] = useState<{ id?: string } | null>(null);
   const [fieldName, setFieldName] = useState("");
   const [fieldStart, setFieldStart] = useState("");
+  const [splitCount, setSplitCount] = useState("6");
   const [eventModal, setEventModal] = useState<
     { fieldId?: string; eventId?: string; kind: ScheduleEvent["kind"] } | null
   >(null);
@@ -494,12 +495,12 @@ export default function Schema() {
               <div className="rounded-lg bg-slate-50 p-3">
                 <div className="text-sm font-semibold">Veld splitsen</div>
                 <p className="mb-2 mt-1 text-xs text-slate-500">
-                  Deel dit veld op in losse speelveldjes — bijv. twee 7x7-helften of vier
-                  4x4-veldjes. Elk deel krijgt zijn eigen programmakolom; geplande wedstrijden
-                  blijven op deel A staan en de plattegrond wordt mee opgedeeld.
+                  Deel dit veld op in losse speelveldjes — twee 7x7-helften, vier 4x4-veldjes of
+                  nog kleiner (tot 12). Elk deel krijgt zijn eigen programmakolom; geplande
+                  wedstrijden blijven op deel A staan en de plattegrond wordt mee opgedeeld.
                 </p>
-                <div className="flex gap-2">
-                  {([2, 4] as const).map((n) => (
+                <div className="flex flex-wrap items-center gap-2">
+                  {[2, 4, 6, 8].map((n) => (
                     <button
                       key={n}
                       className="btn-outline"
@@ -510,9 +511,31 @@ export default function Schema() {
                         setFieldModal(null);
                       }}
                     >
-                      {n === 2 ? "In 2 (7x7)" : "In 4 (4x4)"}
+                      {n}
                     </button>
                   ))}
+                  <span className="text-xs text-slate-400">of</span>
+                  <input
+                    type="number"
+                    min={2}
+                    max={12}
+                    className="w-16 rounded border border-slate-300 px-2 py-1.5 text-center text-sm"
+                    value={splitCount}
+                    onChange={(e) => setSplitCount(e.target.value)}
+                  />
+                  <button
+                    className="btn-primary"
+                    disabled={!splitCount || +splitCount < 2 || +splitCount > 12}
+                    onClick={() => {
+                      const id = fieldModal.id!;
+                      const n = +splitCount;
+                      const naam = t.fields.find((f) => f.id === id)?.name ?? "veld";
+                      commit(`"${naam}" gesplitst in ${n} veldjes`, (x) => splitField(x, id, n));
+                      setFieldModal(null);
+                    }}
+                  >
+                    Splits
+                  </button>
                 </div>
               </div>
             )}
