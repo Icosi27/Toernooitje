@@ -35,7 +35,8 @@ describe("Landing", () => {
     expect(screen.getAllByText(/Inloggen/).length).toBeGreaterThan(0);
     expect(screen.getByText(/Algemene voorwaarden/)).toBeTruthy();
     expect(screen.getByText(/Privacyverklaring/)).toBeTruthy();
-    expect(screen.getAllByText(/Onze missie/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Missie/).length).toBeGreaterThan(0);
+    expect(screen.getByText(/Sport verbindt/)).toBeTruthy();
   });
 });
 
