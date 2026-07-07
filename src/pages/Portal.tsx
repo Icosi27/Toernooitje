@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { useApp, useTournament } from "../store";
 import type { Match, Tournament } from "../types";
@@ -13,9 +13,10 @@ type SaveState = "saving" | "saved" | "error";
 
 /**
  * Invoerportaal voor scheidsrechters (/scheids/:id/:refId — alleen eigen
- * wedstrijden) en beheerders met uitslag-rechten (/invoer/:id — alles).
- * Op het apparaat van de organisator werkt het lokaal; op andere telefoons
- * via de online synchronisatie (de link bevat dan ?k=schrijfsleutel).
+ * wedstrijden, ook voor fluitende teams) en beheerders (/invoer/:id — alles).
+ * Scores worden als concept ingevoerd en pas doorgevoerd met de Opslaan-knop:
+ * zo gaat een score waarover nog discussie is niet per ongeluk live.
+ * Opgeslagen uitslagen blijven altijd te wijzigen (typo's, herziene uitslag).
  */
 export default function Portal() {
   const { id, refId } = useParams();
@@ -26,30 +27,28 @@ export default function Portal() {
 
 function LocalPortal({ t, refId }: { t: Tournament; refId?: string }) {
   const update = useApp((s) => s.updateTournament);
-  const setScore = (matchId: string, side: "A" | "B", val: string) => {
+  const save = (matchId: string, a: number | undefined, b: number | undefined) => {
     update(t.id, (x) => {
       for (const d of x.divisions) {
         const m = allMatches(d).find((y) => y.id === matchId);
         if (m) {
-          const v = val === "" ? undefined : Math.max(0, +val);
-          if (side === "A") m.scoreA = v;
-          else m.scoreB = v;
+          m.scoreA = a;
+          m.scoreB = b;
         }
       }
     });
     pushScore(t.id, matchId);
   };
-  return <PortalView t={t} refId={refId} onScore={setScore} status={{}} />;
+  return <PortalView t={t} refId={refId} onSave={save} status={{}} />;
 }
 
 function CloudPortal({ id, refId }: { id?: string; refId?: string }) {
   const [params] = useSearchParams();
   const writeKey = params.get("k");
   const { t, loading, error, refresh } = useCloudTournament(id, params.get("s"), params.get("a"));
-  // optimistische invoer: direct tonen wat je typt, server volgt (debounced)
+  // opgeslagen waarden over de serverdata heen leggen tot de refresh ze bevestigt
   const [pending, setPending] = useState<Record<string, { a?: number; b?: number }>>({});
   const [status, setStatus] = useState<Record<string, SaveState>>({});
-  const timers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
   if (loading) return <div className="p-10 text-center text-slate-500">Laden…</div>;
   if (error || !t)
@@ -66,7 +65,6 @@ function CloudPortal({ id, refId }: { id?: string; refId?: string }) {
       </div>
     );
 
-  // pending-waarden over de serverdata heen leggen
   for (const d of t.divisions) {
     for (const m of allMatches(d)) {
       const p = pending[m.id];
@@ -77,14 +75,15 @@ function CloudPortal({ id, refId }: { id?: string; refId?: string }) {
     }
   }
 
-  const send = (matchId: string) => {
-    const sb = clientFromParams(null, null);
-    if (!sb) return;
-    let cur: Match | undefined;
-    for (const d of t.divisions) cur = cur ?? allMatches(d).find((y) => y.id === matchId);
-    if (!cur) return;
+  const save = (matchId: string, a: number | undefined, b: number | undefined) => {
+    setPending((prev) => ({ ...prev, [matchId]: { a, b } }));
     setStatus((s) => ({ ...s, [matchId]: "saving" }));
-    submitScore(sb, t.id, writeKey, matchId, cur.scoreA ?? null, cur.scoreB ?? null)
+    const sb = clientFromParams(null, null);
+    if (!sb) {
+      setStatus((s) => ({ ...s, [matchId]: "error" }));
+      return;
+    }
+    submitScore(sb, t.id, writeKey, matchId, a ?? null, b ?? null)
       .then(() => {
         setStatus((s) => ({ ...s, [matchId]: "saved" }));
         refresh();
@@ -92,34 +91,32 @@ function CloudPortal({ id, refId }: { id?: string; refId?: string }) {
       .catch(() => setStatus((s) => ({ ...s, [matchId]: "error" })));
   };
 
-  const setScore = (matchId: string, side: "A" | "B", val: string) => {
-    const v = val === "" ? undefined : Math.max(0, +val);
-    setPending((prev) => ({
-      ...prev,
-      [matchId]: { ...prev[matchId], [side === "A" ? "a" : "b"]: v },
-    }));
-    // kort wachten zodat "12" niet als "1" live gaat
-    clearTimeout(timers.current[matchId]);
-    setStatus((s) => ({ ...s, [matchId]: "saving" }));
-    timers.current[matchId] = setTimeout(() => send(matchId), 700);
-  };
-
   return (
-    <PortalView t={t} refId={refId} onScore={setScore} status={status} onRetry={send} cloud />
+    <PortalView
+      t={t}
+      refId={refId}
+      onSave={save}
+      status={status}
+      onRetry={(matchId) => {
+        const p = pending[matchId];
+        if (p) save(matchId, p.a, p.b);
+      }}
+      cloud
+    />
   );
 }
 
 function PortalView({
   t,
   refId,
-  onScore,
+  onSave,
   status,
   onRetry,
   cloud = false,
 }: {
   t: Tournament;
   refId?: string;
-  onScore: (matchId: string, side: "A" | "B", val: string) => void;
+  onSave: (matchId: string, a: number | undefined, b: number | undefined) => void;
   status: Record<string, SaveState>;
   onRetry?: (matchId: string) => void;
   cloud?: boolean;
@@ -207,7 +204,7 @@ function PortalView({
               m={m}
               state={status[m.id]}
               onRetry={onRetry ? () => onRetry(m.id) : undefined}
-              onScore={(side, val) => onScore(m.id, side, val)}
+              onSave={(a, b) => onSave(m.id, a, b)}
             />
           ))}
         </div>
@@ -222,6 +219,10 @@ function PortalView({
             </button>
             {showDone && (
               <div className="mt-2 space-y-2">
+                <p className="text-xs text-slate-500">
+                  Uitslag herzien na discussie of een typo? Pas de score aan en druk opnieuw op
+                  Opslaan.
+                </p>
                 {done.map(({ m, d }) => (
                   <PortalRow
                     key={m.id}
@@ -233,7 +234,7 @@ function PortalView({
                     m={m}
                     state={status[m.id]}
                     onRetry={onRetry ? () => onRetry(m.id) : undefined}
-                    onScore={(side, val) => onScore(m.id, side, val)}
+                    onSave={(a, b) => onSave(m.id, a, b)}
                   />
                 ))}
               </div>
@@ -255,7 +256,7 @@ function PortalRow({
   state,
   highlight = false,
   onRetry,
-  onScore,
+  onSave,
 }: {
   start?: string;
   field?: string;
@@ -266,12 +267,31 @@ function PortalRow({
   state?: SaveState;
   highlight?: boolean;
   onRetry?: () => void;
-  onScore: (side: "A" | "B", val: string) => void;
+  onSave: (a: number | undefined, b: number | undefined) => void;
 }) {
   const played = isPlayed(m);
+  // concept-invoer: pas doorgevoerd na een druk op Opslaan
+  const [draft, setDraft] = useState<{ a: string; b: string } | null>(null);
+  const shownA = draft ? draft.a : m.scoreA !== undefined ? String(m.scoreA) : "";
+  const shownB = draft ? draft.b : m.scoreB !== undefined ? String(m.scoreB) : "";
+  const dirty =
+    draft !== null &&
+    (draft.a !== (m.scoreA !== undefined ? String(m.scoreA) : "") ||
+      draft.b !== (m.scoreB !== undefined ? String(m.scoreB) : ""));
+
+  const edit = (side: "a" | "b", val: string) =>
+    setDraft({ a: side === "a" ? val : shownA, b: side === "b" ? val : shownB });
+
+  const commit = () => {
+    if (!draft) return;
+    const parse = (v: string) => (v === "" ? undefined : Math.max(0, +v));
+    onSave(parse(draft.a), parse(draft.b));
+    setDraft(null);
+  };
+
   return (
     <div
-      className={`card p-3 ${played ? "bg-green-50/50" : ""}`}
+      className={`card p-3 ${played && !dirty ? "bg-green-50/50" : ""}`}
       style={highlight ? { boxShadow: "0 0 0 2px var(--accent)" } : undefined}
     >
       <div className="mb-1 flex flex-wrap items-center gap-3 text-xs text-slate-400">
@@ -284,16 +304,17 @@ function PortalRow({
         {field && <span>🟩 {field}</span>}
         {division && <span>{division}</span>}
         {m.label && <span>{m.label}</span>}
-        {played && winnerOf(m) === null && m.scoreA === m.scoreB && <span>gelijkspel</span>}
+        {played && !dirty && winnerOf(m) === null && m.scoreA === m.scoreB && <span>gelijkspel</span>}
         <span className="ml-auto">
-          {state === "saving" && <span className="text-slate-400">↻ opslaan…</span>}
-          {state === "saved" && <span className="text-green-600">✓ opgeslagen</span>}
-          {state === "error" && (
+          {dirty && <span className="font-semibold text-amber-600">niet opgeslagen</span>}
+          {!dirty && state === "saving" && <span className="text-slate-400">↻ opslaan…</span>}
+          {!dirty && state === "saved" && <span className="text-green-600">✓ opgeslagen</span>}
+          {!dirty && state === "error" && (
             <button className="cursor-pointer font-semibold text-red-600 underline" onClick={onRetry}>
               ⚠ niet opgeslagen — opnieuw
             </button>
           )}
-          {!state && played && <span className="text-green-600">✓</span>}
+          {!dirty && !state && played && <span className="text-green-600">✓</span>}
         </span>
       </div>
       <div className="flex items-center gap-2">
@@ -303,8 +324,8 @@ function PortalRow({
           min={0}
           inputMode="numeric"
           className="score-input"
-          value={m.scoreA ?? ""}
-          onChange={(e) => onScore("A", e.target.value)}
+          value={shownA}
+          onChange={(e) => edit("a", e.target.value)}
         />
         <span className="text-slate-400">–</span>
         <input
@@ -312,11 +333,21 @@ function PortalRow({
           min={0}
           inputMode="numeric"
           className="score-input"
-          value={m.scoreB ?? ""}
-          onChange={(e) => onScore("B", e.target.value)}
+          value={shownB}
+          onChange={(e) => edit("b", e.target.value)}
         />
         <span className="flex-1 truncate text-base font-medium">{b}</span>
       </div>
+      {dirty && (
+        <div className="mt-2 flex items-center justify-end gap-2">
+          <button className="btn-ghost text-xs" onClick={() => setDraft(null)}>
+            Annuleer
+          </button>
+          <button className="btn-primary" onClick={commit}>
+            💾 Opslaan
+          </button>
+        </div>
+      )}
     </div>
   );
 }

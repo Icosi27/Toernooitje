@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Link, useOutletContext } from "react-router-dom";
 import type { Match, Tournament } from "../../types";
 import { useApp } from "../../store";
@@ -22,16 +23,19 @@ export default function Resultaten() {
   const [divIdx, setDivIdx] = useDivIdx(t.id, t.divisions.length);
   const div = t.divisions[Math.min(divIdx, t.divisions.length - 1)];
 
-  const setScore = (matchId: string, side: "A" | "B" | "pA" | "pB", val: string) => {
+  /** Concept wordt pas doorgevoerd bij Opslaan — uitslagen blijven altijd te corrigeren. */
+  const saveScore = (
+    matchId: string,
+    v: { a?: number; b?: number; pa?: number; pb?: number }
+  ) => {
     update(t.id, (x) => {
       for (const d of x.divisions) {
         const m = allMatches(d).find((y) => y.id === matchId);
         if (!m) continue;
-        const v = val === "" ? undefined : Math.max(0, +val);
-        if (side === "A") m.scoreA = v;
-        else if (side === "B") m.scoreB = v;
-        else if (side === "pA") m.pensA = v;
-        else m.pensB = v;
+        m.scoreA = v.a;
+        m.scoreB = v.b;
+        m.pensA = v.pa;
+        m.pensB = v.pb;
       }
     });
     pushScore(t.id, matchId);
@@ -111,11 +115,29 @@ export default function Resultaten() {
     disabled?: boolean;
     editableSlots?: boolean;
   }) => {
-    const drawInKo =
-      ko && m.scoreA !== undefined && m.scoreB !== undefined && m.scoreA === m.scoreB;
+    // concept-invoer: pas doorgevoerd (en gepubliceerd) na een druk op Opslaan
+    const [draft, setDraft] = useState<{ a: string; b: string; pa: string; pb: string } | null>(null);
+    const asStr = (v?: number) => (v !== undefined ? String(v) : "");
+    const current = { a: asStr(m.scoreA), b: asStr(m.scoreB), pa: asStr(m.pensA), pb: asStr(m.pensB) };
+    const shown = draft ?? current;
+    const dirty =
+      draft !== null &&
+      (draft.a !== current.a || draft.b !== current.b || draft.pa !== current.pa || draft.pb !== current.pb);
+    const edit = (key: "a" | "b" | "pa" | "pb", val: string) => setDraft({ ...shown, [key]: val });
+    const commit = () => {
+      if (!draft) return;
+      const parse = (v: string) => (v === "" ? undefined : Math.max(0, +v));
+      saveScore(m.id, { a: parse(draft.a), b: parse(draft.b), pa: parse(draft.pa), pb: parse(draft.pb) });
+      setDraft(null);
+    };
+    const shownA = shown.a === "" ? undefined : +shown.a;
+    const shownB = shown.b === "" ? undefined : +shown.b;
+    const drawInKo = ko && shownA !== undefined && shownB !== undefined && shownA === shownB;
     const canEdit = (slot: Match["a"]) => editableSlots && (slot.kind === "pouleRank" || slot.kind === "tbd");
+    const inputCls = "w-12 rounded border px-1 py-0.5 text-center disabled:bg-slate-50 " +
+      (dirty ? "border-amber-400 bg-amber-50" : "border-slate-200");
     return (
-      <div className="flex items-center gap-2 border-t border-slate-100 py-1.5 text-sm">
+      <div className="flex flex-wrap items-center gap-2 border-t border-slate-100 py-1.5 text-sm">
         <span className="w-12 text-xs text-slate-400">{m.start ?? ""}</span>
         {canEdit(m.a) ? (
           <span className="flex flex-1 justify-end">
@@ -128,18 +150,18 @@ export default function Resultaten() {
           type="number"
           min={0}
           disabled={disabled}
-          className="w-12 rounded border border-slate-200 px-1 py-0.5 text-center disabled:bg-slate-50"
-          value={m.scoreA ?? ""}
-          onChange={(e) => setScore(m.id, "A", e.target.value)}
+          className={inputCls}
+          value={shown.a}
+          onChange={(e) => edit("a", e.target.value)}
         />
         <span className="text-slate-400">–</span>
         <input
           type="number"
           min={0}
           disabled={disabled}
-          className="w-12 rounded border border-slate-200 px-1 py-0.5 text-center disabled:bg-slate-50"
-          value={m.scoreB ?? ""}
-          onChange={(e) => setScore(m.id, "B", e.target.value)}
+          className={inputCls}
+          value={shown.b}
+          onChange={(e) => edit("b", e.target.value)}
         />
         {canEdit(m.b) ? (
           <span className="flex flex-1">
@@ -154,24 +176,83 @@ export default function Resultaten() {
             <input
               type="number"
               min={0}
-              className="w-10 rounded border border-slate-200 px-1 py-0.5 text-center"
-              value={m.pensA ?? ""}
-              onChange={(e) => setScore(m.id, "pA", e.target.value)}
+              className={inputCls + " w-10"}
+              value={shown.pa}
+              onChange={(e) => edit("pa", e.target.value)}
             />
             –
             <input
               type="number"
               min={0}
-              className="w-10 rounded border border-slate-200 px-1 py-0.5 text-center"
-              value={m.pensB ?? ""}
-              onChange={(e) => setScore(m.id, "pB", e.target.value)}
+              className={inputCls + " w-10"}
+              value={shown.pb}
+              onChange={(e) => edit("pb", e.target.value)}
             />
           </span>
         )}
         {drawInKo && !t.scoring.shootouts && (
           <span className="text-xs text-amber-600">gelijk — winnaar onbekend</span>
         )}
-        {ko && winnerOf(m) && <span className="text-xs text-green-600">✓</span>}
+        {!dirty && ko && winnerOf(m) && <span className="text-xs text-green-600">✓</span>}
+        {dirty && (
+          <span className="flex items-center gap-1">
+            <button className="btn-ghost px-2 py-0.5 text-xs" onClick={() => setDraft(null)}>
+              Annuleer
+            </button>
+            <button className="btn-primary px-3 py-1 text-xs" onClick={commit}>
+              💾 Opslaan
+            </button>
+          </span>
+        )}
+      </div>
+    );
+  };
+
+  /** Score-invoer voor individuele wedstrijden, met hetzelfde concept + Opslaan-patroon. */
+  const IndivRow = ({ m, aName, bName }: { m: Match; aName: string; bName: string }) => {
+    const [draft, setDraft] = useState<{ a: string; b: string } | null>(null);
+    const asStr = (v?: number) => (v !== undefined ? String(v) : "");
+    const shown = draft ?? { a: asStr(m.scoreA), b: asStr(m.scoreB) };
+    const dirty = draft !== null && (draft.a !== asStr(m.scoreA) || draft.b !== asStr(m.scoreB));
+    const inputCls =
+      "w-12 rounded border px-1 py-0.5 text-center text-sm " +
+      (dirty ? "border-amber-400 bg-amber-50" : "border-slate-200");
+    return (
+      <div className="flex flex-wrap items-center gap-2 border-t border-slate-100 py-1.5 text-xs">
+        <span className="flex-1 text-right">{aName}</span>
+        <input
+          type="number"
+          min={0}
+          className={inputCls}
+          value={shown.a}
+          onChange={(e) => setDraft({ ...shown, a: e.target.value })}
+        />
+        <span className="text-slate-400">–</span>
+        <input
+          type="number"
+          min={0}
+          className={inputCls}
+          value={shown.b}
+          onChange={(e) => setDraft({ ...shown, b: e.target.value })}
+        />
+        <span className="flex-1">{bName}</span>
+        {dirty && (
+          <span className="flex items-center gap-1">
+            <button className="btn-ghost px-2 py-0.5 text-xs" onClick={() => setDraft(null)}>
+              Annuleer
+            </button>
+            <button
+              className="btn-primary px-3 py-1 text-xs"
+              onClick={() => {
+                const parse = (v: string) => (v === "" ? undefined : Math.max(0, +v));
+                saveScore(m.id, { a: parse(shown.a), b: parse(shown.b) });
+                setDraft(null);
+              }}
+            >
+              💾 Opslaan
+            </button>
+          </span>
+        )}
       </div>
     );
   };
@@ -348,27 +429,7 @@ export default function Resultaten() {
                       const lu = s.lineups[m.id];
                       const names = (ids: string[]) =>
                         ids.map((id) => div.players.find((pl) => pl.id === id)?.name ?? "?").join(", ");
-                      return (
-                        <div key={m.id} className="flex items-center gap-2 border-t border-slate-100 py-1.5 text-xs">
-                          <span className="flex-1 text-right">{names(lu?.a ?? [])}</span>
-                          <input
-                            type="number"
-                            min={0}
-                            className="w-12 rounded border border-slate-200 px-1 py-0.5 text-center text-sm"
-                            value={m.scoreA ?? ""}
-                            onChange={(e) => setScore(m.id, "A", e.target.value)}
-                          />
-                          <span className="text-slate-400">–</span>
-                          <input
-                            type="number"
-                            min={0}
-                            className="w-12 rounded border border-slate-200 px-1 py-0.5 text-center text-sm"
-                            value={m.scoreB ?? ""}
-                            onChange={(e) => setScore(m.id, "B", e.target.value)}
-                          />
-                          <span className="flex-1">{names(lu?.b ?? [])}</span>
-                        </div>
-                      );
+                      return <IndivRow key={m.id} m={m} aName={names(lu?.a ?? [])} bName={names(lu?.b ?? [])} />;
                     })}
                   </div>
                 ))}
