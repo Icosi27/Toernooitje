@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useOutletContext } from "react-router-dom";
 import type { Tournament } from "../../types";
 import { useApp } from "../../store";
-import { EmptyState, Modal, ModalActions, Toggle } from "../../components/ui";
+import { EmptyState, Modal, ModalActions, Section, Toggle } from "../../components/ui";
 import { appUrl, copyText } from "../../logic/share";
 import { decideRegistration, liveQuery } from "../../logic/cloud";
 import { fileToDataUrl } from "../../logic/files";
@@ -34,6 +34,9 @@ export default function Deelnemers() {
   };
 
   const div = t.divisions[Math.min(divIdx, t.divisions.length - 1)];
+  const fields = t.teamFields ?? { present: true, paid: true, email: false };
+  const setField = (key: keyof typeof fields, v: boolean) =>
+    u((x) => (x.teamFields = { ...(x.teamFields ?? fields), [key]: v }));
 
   const addTeams = () => {
     const names = bulkMode
@@ -91,6 +94,36 @@ export default function Deelnemers() {
             />
           </div>
 
+          {!div.individualMode && (
+            <div className="card mb-4 px-4">
+              <Section
+                title="Informatie over de teams"
+                subtitle="Geef aan welke administratie je per team wilt bijhouden"
+              >
+                <div className="flex flex-wrap gap-6 pb-2">
+                  <Toggle checked={fields.present} onChange={(v) => setField("present", v)} label="Aanwezig" />
+                  <Toggle checked={fields.paid} onChange={(v) => setField("paid", v)} label="Betaald" />
+                  <Toggle checked={fields.email} onChange={(v) => setField("email", v)} label="E-mail" />
+                </div>
+              </Section>
+            </div>
+          )}
+
+          {!div.individualMode && div.teams.length > 0 && (fields.present || fields.paid) && (
+            <div className="mb-3 flex gap-4 text-sm text-slate-600">
+              {fields.present && (
+                <span>
+                  ✅ <b>{div.teams.filter((tm) => tm.present).length}</b>/{div.teams.length} aanwezig
+                </span>
+              )}
+              {fields.paid && (
+                <span>
+                  💶 <b>{div.teams.filter((tm) => tm.paid).length}</b>/{div.teams.length} betaald
+                </span>
+              )}
+            </div>
+          )}
+
           {!div.individualMode ? (
             div.teams.length === 0 ? (
               <EmptyState
@@ -116,6 +149,56 @@ export default function Deelnemers() {
                           })
                         }
                       />
+                      {fields.email && (
+                        <input
+                          className="input w-44 border-0 text-xs text-slate-500"
+                          placeholder="e-mail"
+                          value={team.email ?? ""}
+                          onChange={(e) =>
+                            u((x) => {
+                              const d = x.divisions.find((d) => d.id === div.id)!;
+                              const tm = d.teams.find((y) => y.id === team.id)!;
+                              tm.email = e.target.value || undefined;
+                            })
+                          }
+                        />
+                      )}
+                      {fields.present && (
+                        <label
+                          className="flex cursor-pointer items-center gap-1 text-xs text-slate-500"
+                          title="Team is aanwezig gemeld"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={!!team.present}
+                            onChange={(e) =>
+                              u((x) => {
+                                const d = x.divisions.find((d) => d.id === div.id)!;
+                                d.teams.find((y) => y.id === team.id)!.present = e.target.checked;
+                              })
+                            }
+                          />
+                          aanw.
+                        </label>
+                      )}
+                      {fields.paid && (
+                        <label
+                          className="flex cursor-pointer items-center gap-1 text-xs text-slate-500"
+                          title="Inschrijfgeld betaald"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={!!team.paid}
+                            onChange={(e) =>
+                              u((x) => {
+                                const d = x.divisions.find((d) => d.id === div.id)!;
+                                d.teams.find((y) => y.id === team.id)!.paid = e.target.checked;
+                              })
+                            }
+                          />
+                          betaald
+                        </label>
+                      )}
                       <span className="text-xs text-slate-400">{team.players.length} spelers</span>
                       <button
                         className="btn-ghost text-xs"

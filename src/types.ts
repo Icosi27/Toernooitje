@@ -196,6 +196,8 @@ export interface Tournament {
   presentation: Presentation;
   /** online synchronisatie (Supabase); writeKey blijft op het apparaat van de organisator */
   cloud?: { online: boolean; writeKey: string };
+  /** welke administratievelden per team worden bijgehouden */
+  teamFields?: { present: boolean; paid: boolean; email: boolean };
   /** online inschrijfpagina voor teams */
   registrationOpen?: boolean;
   registrationInfo?: string;

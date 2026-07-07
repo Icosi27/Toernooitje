@@ -18,8 +18,18 @@ export interface CloudConfig {
 
 const CONFIG_KEY = "toernooitje-supabase";
 
-/** Standaard Supabase-project van Toernooitje; alleen de anon key nog plakken. */
+/**
+ * Standaard Supabase-project van Toernooitje. De publishable key is bedoeld
+ * voor client-gebruik (alle beveiliging zit in RLS en de RPC's); de geheime
+ * sleutel hoort hier nadrukkelijk NIET thuis.
+ */
 export const DEFAULT_SUPABASE_URL = "https://rwiztgedifbttwdbevpw.supabase.co";
+export const DEFAULT_SUPABASE_KEY = "sb_publishable_OdsoiTDwRko6q4Uqm322nw_4KmtMzbb";
+
+/** Config met standaardwaarden: werkt direct, eigen server blijft mogelijk. */
+export function effectiveConfig(): CloudConfig {
+  return getCloudConfig() ?? { url: DEFAULT_SUPABASE_URL, anonKey: DEFAULT_SUPABASE_KEY };
+}
 
 export function getCloudConfig(): CloudConfig | null {
   try {
@@ -42,8 +52,7 @@ let client: SupabaseClient | undefined;
 
 export function getClient(): SupabaseClient | null {
   if (client) return client;
-  const c = getCloudConfig();
-  if (!c) return null;
+  const c = effectiveConfig();
   client = createClient(c.url, c.anonKey);
   return client;
 }
@@ -200,8 +209,8 @@ export function decideRegistration(tournamentId: string, regId: string, status: 
 
 /** Queryparameters voor links naar andere apparaten (server + schrijfsleutel). */
 export function liveQuery(t: Tournament, withKey: boolean): string {
-  const c = getCloudConfig();
-  if (!t.cloud?.online || !c) return "";
+  const c = effectiveConfig();
+  if (!t.cloud?.online) return "";
   const base = `?s=${encodeURIComponent(c.url)}&a=${encodeURIComponent(c.anonKey)}`;
   return withKey ? `${base}&k=${encodeURIComponent(t.cloud.writeKey)}` : base;
 }

@@ -5,7 +5,7 @@ import { useApp } from "../../store";
 import { Section, Toggle } from "../../components/ui";
 import { DONATE_URL } from "../../components/monetization";
 import { appUrl, copyText, encodeShare } from "../../logic/share";
-import { DEFAULT_SUPABASE_URL, getCloudConfig, publishTournament, setCloudConfig } from "../../logic/cloud";
+import { effectiveConfig, publishTournament, setCloudConfig } from "../../logic/cloud";
 import { fileToDataUrl } from "../../logic/files";
 import { uid } from "../../logic/id";
 
@@ -24,12 +24,12 @@ function CloudSharing({
   copy: (key: string, url: string) => void;
 }) {
   const update = useApp((s) => s.updateTournament);
-  const [config, setConfig] = useState(getCloudConfig());
-  const [url, setUrl] = useState(config?.url ?? DEFAULT_SUPABASE_URL);
-  const [anon, setAnon] = useState(config?.anonKey ?? "");
+  const [config, setConfig] = useState(effectiveConfig());
+  const [url, setUrl] = useState(config.url);
+  const [anon, setAnon] = useState(config.anonKey);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [showConfig, setShowConfig] = useState(!config);
+  const [showConfig, setShowConfig] = useState(false);
 
   const online = !!t.cloud?.online;
   const qs = config
@@ -91,14 +91,14 @@ function CloudSharing({
 
       {error && <p className="mt-2 text-xs text-red-600">{error}</p>}
 
-      {(showConfig || !config) && (
+      {showConfig && (
         <div className="mt-4 space-y-3 rounded bg-slate-50 p-3">
           <p className="text-xs text-slate-600">
-            <b>Eenmalige setup (gratis):</b> 1) maak een project op{" "}
+            Standaard gebruikt Toernooitje de meegeleverde server; je hoeft hier normaal niets te
+            wijzigen. Eigen Supabase-project gebruiken? Maak er een op{" "}
             <a href="https://supabase.com" target="_blank" rel="noreferrer" className="underline">supabase.com</a>,
-            2) plak de inhoud van <code>supabase/setup.sql</code> (staat in dit project) in de SQL
-            Editor en klik Run, 3) kopieer bij Project Settings → API de URL en de "anon public" key
-            hierheen.
+            draai <code>supabase/setup.sql</code> in de SQL Editor en plak hier de URL en de
+            publishable/anon key.
           </p>
           <input className="input" placeholder="Supabase URL (https://xxxx.supabase.co)" value={url} onChange={(e) => setUrl(e.target.value)} />
           <input className="input" placeholder="Anon public key (eyJ…)" value={anon} onChange={(e) => setAnon(e.target.value)} />
