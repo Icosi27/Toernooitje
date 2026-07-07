@@ -6,6 +6,7 @@ import { allMatches, slotLabel, winnerOf } from "../logic/resolve";
 import { isPlayed } from "../logic/standings";
 import { clientFromParams, pushScore, submitScore, useCloudTournament } from "../logic/cloud";
 import { DonateButton } from "../components/monetization";
+import { Confetti, Trophy } from "../components/decor";
 
 type SaveState = "saving" | "saved" | "error";
 
@@ -138,7 +139,7 @@ function PortalView({
 
   return (
     <div className="min-h-screen" style={{ ["--accent" as string]: t.presentation.accentColor }}>
-      <header className="accent-header sticky top-0 z-30 px-4 py-4 text-white">
+      <header className="stadium sticky top-0 z-30 px-4 py-4 text-white">
         <div className="mx-auto flex max-w-2xl items-center justify-between">
           <div>
             <h1 className="text-lg font-bold">{t.name}</h1>
@@ -169,6 +170,19 @@ function PortalView({
               ? "Er zijn nog geen wedstrijden aan deze scheidsrechter toegewezen (Schema-pagina)."
               : "Er zijn nog geen wedstrijden."}
           </p>
+        )}
+
+        {rows.length > 0 && open.length === 0 && (
+          <div className="stadium fade-in relative mb-4 overflow-hidden rounded-2xl p-6 text-center text-white">
+            <Confetti count={14} />
+            <div className="relative flex flex-col items-center gap-2">
+              <Trophy size={90} />
+              <div className="text-xl font-black tracking-tight">Alles ingevuld — bedankt!</div>
+              <p className="text-sm text-white/75">
+                Alle {rows.length} uitslagen staan erin. Tijd voor een bakkie in de kantine. ☕
+              </p>
+            </div>
+          </div>
         )}
 
         <div className="space-y-2">

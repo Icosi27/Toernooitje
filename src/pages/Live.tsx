@@ -4,12 +4,13 @@ import { useTournament } from "../store";
 import type { Division, Match, Tournament } from "../types";
 import { isPlayed, pouleStandings } from "../logic/standings";
 import { individualStandings } from "../logic/individual";
-import { qualifyingRanks, resolveSlot, slotLabel } from "../logic/resolve";
+import { qualifyingRanks, resolveSlot, slotLabel, winnerOf } from "../logic/resolve";
 import { scheduledMatches } from "../logic/schedule";
 import { copyText, decodeShare } from "../logic/share";
 import { useCloudTournament } from "../logic/cloud";
 import { AdBlock, DonateButton } from "../components/monetization";
 import { TeamBadge } from "../components/TeamBadge";
+import { Confetti, Trophy } from "../components/decor";
 
 type Page = "toernooi" | "standen" | "schema";
 
@@ -127,7 +128,7 @@ function LiveInner({
       style={{ ["--accent" as string]: t.presentation.accentColor }}
     >
       <header
-        className={`relative px-6 py-8 text-white ${t.presentation.background ? "" : "accent-header"}`}
+        className={`relative overflow-hidden px-6 py-10 text-white ${t.presentation.background ? "" : "stadium"}`}
         style={
           t.presentation.background
             ? {
@@ -136,6 +137,7 @@ function LiveInner({
             : undefined
         }
       >
+        {slideshow && <div className="beam left-[10%]" style={{ animationDelay: "-3s" }} />}
         <div className={`mx-auto flex items-center gap-4 ${slideshow ? "max-w-6xl" : "max-w-4xl"}`}>
           {t.presentation.logo && <img src={t.presentation.logo} alt="logo" className="h-14" />}
           <div className="flex-1">
@@ -189,6 +191,8 @@ function LiveInner({
         </div>
       </nav>
 
+      <LiveTicker t={t} />
+
       {!slideshow && allTeams.length > 0 && (
         <div className="border-b border-slate-200 bg-white px-4 py-2">
           <div className="mx-auto flex max-w-4xl flex-wrap items-center gap-2 text-sm">
@@ -231,6 +235,8 @@ function LiveInner({
 
         <AdBlock t={t} />
 
+        {page === "standen" && t.divisions.map((d) => <ChampionBanner key={`c-${d.id}`} t={t} d={d} />)}
+
         {page === "toernooi" && <ToernooiInfo t={t} />}
         {page === "standen" && t.divisions.map((d) => <Standen key={d.id} t={t} d={d} myTeam={myTeam} />)}
         {page === "schema" && <SchemaView t={t} myTeam={myTeam} />}
@@ -246,6 +252,62 @@ function LiveInner({
       </main>
     </div>
   );
+}
+
+/** Doorlopende ticker met uitslagen en komende wedstrijden, uit de echte data. */
+function LiveTicker({ t }: { t: Tournament }) {
+  const rows = scheduledMatches(t);
+  const fieldName = (id?: string) => t.fields.find((f) => f.id === id)?.name;
+  const items: string[] = [];
+  for (const { match: m, division: d } of rows) {
+    const a = slotLabel(m.a, d, t.scoring);
+    const b = slotLabel(m.b, d, t.scoring);
+    if (isPlayed(m)) items.push(`${a} ${m.scoreA}–${m.scoreB} ${b}`);
+    else if (m.start) items.push(`${m.start}${m.fieldId ? ` · ${fieldName(m.fieldId)}` : ""} · ${a} — ${b}`);
+    if (items.length >= 14) break;
+  }
+  if (items.length < 3) return null;
+  const doubled = [...items, ...items];
+  return (
+    <div className="overflow-hidden bg-slate-950 py-1.5">
+      <div className="ticker gap-10">
+        {doubled.map((s, i) => (
+          <span key={i} className="score whitespace-nowrap text-xs text-white/60">
+            {s}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** Kampioensbanner: verschijnt zodra de finale van een divisie beslist is. */
+function ChampionBanner({ t, d }: { t: Tournament; d: Division }) {
+  for (const s of [...d.stages].reverse()) {
+    if (s.type !== "bracket") continue;
+    const finale = s.rounds[s.rounds.length - 1]?.matches[0];
+    if (!finale) continue;
+    const w = winnerOf(finale);
+    if (!w) return null;
+    const team = resolveSlot(w === "a" ? finale.a : finale.b, d, t.scoring);
+    if (!team) return null;
+    return (
+      <div className="stadium fade-in relative overflow-hidden rounded-2xl p-6 text-center text-white">
+        <Confetti count={18} />
+        <div className="relative flex flex-col items-center gap-2">
+          <Trophy size={110} />
+          <div className="mt-2 text-xs font-bold uppercase tracking-widest text-white/70">
+            {t.divisions.length > 1 ? `Kampioen ${d.name}` : "Kampioen"}
+          </div>
+          <div className="flex items-center gap-2 text-3xl font-black tracking-tight">
+            <TeamBadge team={team} size={30} />
+            {team.name}
+          </div>
+        </div>
+      </div>
+    );
+  }
+  return null;
 }
 
 /** Alle wedstrijden van één team (ook toekomstige zodra placeholders bekend zijn). */
@@ -273,7 +335,7 @@ function NextMatchCard({ t, teamId }: { t: Tournament; teamId: string }) {
     );
 
   return (
-    <div className="card overflow-hidden">
+    <div className="card fade-in overflow-hidden">
       <div className="px-4 py-1.5 text-xs font-bold uppercase tracking-wide text-white" style={{ background: "var(--accent)" }}>
         {next ? "Jullie volgende wedstrijd" : "Alle wedstrijden gespeeld"}
       </div>
@@ -360,7 +422,7 @@ function Standen({ t, d, myTeam }: { t: Tournament; d: Division; myTeam?: string
   if (d.stages.length === 0) return null;
 
   return (
-    <div>
+    <div className="fade-in">
       {t.divisions.length > 1 && <h2 className="mb-3 text-xl font-bold">{d.name}</h2>}
       <div className="grid gap-4 md:grid-cols-2">
         {d.stages.map((s) => {
@@ -499,7 +561,7 @@ function SchemaView({ t, myTeam }: { t: Tournament; myTeam?: string }) {
   };
 
   return (
-    <div className="card overflow-x-auto">
+    <div className="card fade-in overflow-x-auto">
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b border-slate-200 text-left text-xs uppercase text-slate-500">

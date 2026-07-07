@@ -6,6 +6,7 @@ import { clientFromParams, useCloudTournament } from "../logic/cloud";
 import { submitRegistration } from "../logic/cloud";
 import { uid } from "../logic/id";
 import { DonateButton } from "../components/monetization";
+import { Confetti, Trophy } from "../components/decor";
 
 /**
  * Publieke inschrijfpagina: teams melden zich aan; de organisator ziet ze
@@ -82,7 +83,7 @@ function Form({ t, isLocal }: { t: Tournament; isLocal: boolean }) {
 
   return (
     <div className="min-h-screen" style={{ ["--accent" as string]: t.presentation.accentColor }}>
-      <header className="accent-header px-6 py-6 text-white">
+      <header className="stadium px-6 py-8 text-white">
         <div className="mx-auto flex max-w-lg items-center justify-between gap-4">
           <div>
             <h1 className="text-xl font-bold">{t.name}</h1>
@@ -97,8 +98,11 @@ function Form({ t, isLocal }: { t: Tournament; isLocal: boolean }) {
 
       <main className="mx-auto max-w-lg px-4 py-8">
         {done ? (
-          <div className="card p-8 text-center">
-            <div className="mb-3 text-5xl">✅</div>
+          <div className="card fade-in relative overflow-hidden p-8 text-center">
+            <Confetti count={14} />
+            <div className="relative mb-3 flex justify-center">
+              <Trophy size={90} />
+            </div>
             <h2 className="text-xl font-bold">Inschrijving verstuurd!</h2>
             <p className="mt-2 text-sm text-slate-600">
               De organisatie bekijkt de aanmelding van <b>{teamName}</b>
