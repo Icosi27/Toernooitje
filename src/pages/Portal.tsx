@@ -125,16 +125,21 @@ function PortalView({
   cloud?: boolean;
 }) {
   const [showDone, setShowDone] = useState(false);
+  // de link kan van een scheidsrechter zijn, of van een team dat fluit
   const referee = refId ? t.referees.find((r) => r.id === refId) : undefined;
-  if (refId && !referee)
+  const refTeam = refId && !referee
+    ? t.divisions.flatMap((d) => d.teams).find((tm) => tm.id === refId)
+    : undefined;
+  if (refId && !referee && !refTeam)
     return <div className="p-10 text-center">Ongeldige scheidsrechterlink.</div>;
+  const refName = referee?.name ?? refTeam?.name;
 
   // wedstrijden in fases die de organisator nog niet gestart heeft, blijven buiten beeld
   const gated = gatedMatchIds(t.divisions);
   const rows = t.divisions
     .flatMap((d) => allMatches(d).map((m) => ({ m, d })))
     .filter(({ m }) => !gated.has(m.id))
-    .filter(({ m }) => !refId || m.refereeId === refId)
+    .filter(({ m }) => !refId || m.refereeId === refId || m.refereeTeamId === refId)
     .sort((a, b) => (a.m.start ?? "99:99").localeCompare(b.m.start ?? "99:99"));
 
   const fieldName = (fid?: string) => t.fields.find((f) => f.id === fid)?.name;
@@ -148,7 +153,7 @@ function PortalView({
           <div>
             <h1 className="text-lg font-bold">{t.name}</h1>
             <p className="text-xs opacity-80">
-              {referee ? `Uitslagen invoeren — ${referee.name}` : "Uitslagen invoeren — beheerder"}
+              {refName ? `Uitslagen invoeren — ${refName}` : "Uitslagen invoeren — beheerder"}
               {cloud && " · live verbonden"}
             </p>
           </div>
@@ -170,8 +175,8 @@ function PortalView({
         </p>
         {rows.length === 0 && (
           <p className="text-center text-slate-500">
-            {referee
-              ? "Er zijn nog geen wedstrijden aan deze scheidsrechter toegewezen (Schema-pagina)."
+            {refName
+              ? `Er zijn nog geen wedstrijden aan ${refName} toegewezen. Plan het schema (opnieuw) op de Schema-pagina.`
               : "Er zijn nog geen wedstrijden."}
           </p>
         )}

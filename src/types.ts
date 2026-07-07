@@ -26,6 +26,10 @@ export interface Referee {
   name: string;
   maxMatches?: number;
   note?: string;
+  /** beperk tot deze velden; leeg/undefined = alle velden */
+  fieldIds?: ID[];
+  /** beperk tot deze divisies; leeg/undefined = alle divisies */
+  divisionIds?: ID[];
 }
 
 export interface Admin {
@@ -79,6 +83,8 @@ export interface Match {
   start?: string; // "HH:MM"
   day?: number; // index in tournament.days
   refereeId?: ID;
+  /** bij "teams als scheidsrechters": het team dat deze wedstrijd fluit */
+  refereeTeamId?: ID;
   label?: string; // b.v. "Halve finale 1"
   round?: number; // speelronde binnen poule of KO-ronde
 }
@@ -231,6 +237,8 @@ export interface Tournament {
   cloud?: { online: boolean; writeKey: string };
   /** welke administratievelden per team worden bijgehouden */
   teamFields?: { present: boolean; paid: boolean; email: boolean };
+  /** teams fluiten elkaars wedstrijden i.p.v. vaste scheidsrechters */
+  teamsAsReferees?: boolean;
   /** plattegrond van het sportpark (kantine, kleedkamers, velden) */
   venueMap?: VenueMap;
   /** eventblokken (pauzes, prijsuitreiking) in het speelschema */

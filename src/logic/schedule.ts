@@ -77,23 +77,76 @@ export function autoSchedule(t: Tournament): Tournament {
     for (const tid of tids) teamFree[tid] = end;
   }
 
-  // scheidsrechters toewijzen zonder dubbelboekingen: alleen wie op dat
-  // moment vrij is; niemand vrij -> leeg laten (handmatig oplossen).
-  // Handmatig toegewezen scheidsrechters blijven staan.
-  if (t.referees.length > 0) {
+  const chrono = [...queue].sort((a, b) =>
+    (a.match.start ?? "99:99").localeCompare(b.match.start ?? "99:99")
+  );
+
+  if (t.teamsAsReferees) {
+    // Teams fluiten elkaars wedstrijden: kies per wedstrijd een team uit
+    // dezelfde divisie dat op dat moment niet zelf speelt, eerlijk verdeeld.
+    const busy: Record<string, [string, string][]> = {};
+    for (const item of queue) {
+      const m = item.match;
+      if (!m.start) continue;
+      const end = addMinutes(m.start, slotLen);
+      for (const s of [m.a, m.b])
+        if (s.kind === "team") (busy[s.teamId] ??= []).push([m.start, end]);
+    }
+    const playsDuring = (teamId: string, start: string, end: string) =>
+      (busy[teamId] ?? []).some(([s, e]) => start < e && end > s);
+
     const refFree: Record<string, string> = {};
-    for (const r of t.referees) refFree[r.id] = "00:00";
-    const chrono = [...queue].sort((a, b) =>
-      (a.match.start ?? "99:99").localeCompare(b.match.start ?? "99:99")
-    );
+    const refCount: Record<string, number> = {};
     for (const item of chrono) {
       const m = item.match;
       if (!m.start) continue;
-      if (m.refereeId && t.referees.some((r) => r.id === m.refereeId)) {
-        refFree[m.refereeId] = addMinutes(m.start, slotLen);
+      const d = divisionOf(m);
+      const end = addMinutes(m.start, slotLen);
+      const playing = new Set(teamIdsOf(m, d));
+      const candidates = d.teams.filter(
+        (tm) =>
+          !playing.has(tm.id) &&
+          !playsDuring(tm.id, m.start!, end) &&
+          (refFree[tm.id] ?? "00:00") <= m.start!
+      );
+      if (candidates.length === 0) {
+        m.refereeTeamId = undefined;
         continue;
       }
-      const candidates = t.referees.filter((r) => refFree[r.id] <= m.start!);
+      // minste fluitbeurten eerst, daarna wie het langst geleden floot
+      candidates.sort(
+        (a, b) =>
+          (refCount[a.id] ?? 0) - (refCount[b.id] ?? 0) ||
+          (refFree[a.id] ?? "00:00").localeCompare(refFree[b.id] ?? "00:00")
+      );
+      const pick = candidates[0];
+      m.refereeTeamId = pick.id;
+      m.refereeId = undefined;
+      refFree[pick.id] = end;
+      refCount[pick.id] = (refCount[pick.id] ?? 0) + 1;
+    }
+  } else if (t.referees.length > 0) {
+    // Vaste scheidsrechters, zonder dubbelboekingen en met respect voor hun
+    // voorkeuren: alleen op hun velden/divisies en max. aantal wedstrijden.
+    // Handmatig toegewezen scheidsrechters blijven staan.
+    const refFree: Record<string, string> = {};
+    const refCount: Record<string, number> = {};
+    for (const r of t.referees) refFree[r.id] = "00:00";
+    const eligible = (r: Tournament["referees"][0], m: Match, d: Division) =>
+      (!r.fieldIds?.length || (!!m.fieldId && r.fieldIds.includes(m.fieldId))) &&
+      (!r.divisionIds?.length || r.divisionIds.includes(d.id)) &&
+      (r.maxMatches === undefined || (refCount[r.id] ?? 0) < r.maxMatches);
+    for (const item of chrono) {
+      const m = item.match;
+      if (!m.start) continue;
+      m.refereeTeamId = undefined;
+      if (m.refereeId && t.referees.some((r) => r.id === m.refereeId)) {
+        refFree[m.refereeId] = addMinutes(m.start, slotLen);
+        refCount[m.refereeId] = (refCount[m.refereeId] ?? 0) + 1;
+        continue;
+      }
+      const d = divisionOf(m);
+      const candidates = t.referees.filter((r) => refFree[r.id] <= m.start! && eligible(r, m, d));
       if (candidates.length === 0) {
         m.refereeId = undefined;
         continue;
@@ -102,6 +155,7 @@ export function autoSchedule(t: Tournament): Tournament {
       candidates.sort((a, b) => refFree[a.id].localeCompare(refFree[b.id]));
       m.refereeId = candidates[0].id;
       refFree[candidates[0].id] = addMinutes(m.start, slotLen);
+      refCount[candidates[0].id] = (refCount[candidates[0].id] ?? 0) + 1;
     }
   }
   return t;

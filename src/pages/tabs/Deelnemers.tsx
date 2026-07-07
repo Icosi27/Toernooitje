@@ -18,8 +18,11 @@ export default function Deelnemers() {
 
   const [tab, setTab] = useState<Tab>("teams");
   const [divIdx, setDivIdx] = useDivIdx(t.id, t.divisions.length);
-  const [modal, setModal] = useState<null | "team" | "referee" | "admin" | "player" | "editTeam">(null);
+  const [modal, setModal] = useState<
+    null | "team" | "referee" | "admin" | "player" | "editTeam" | "editReferee"
+  >(null);
   const [editTeamId, setEditTeamId] = useState<string | null>(null);
+  const [editRefId, setEditRefId] = useState<string | null>(null);
   const [nameInput, setNameInput] = useState("");
   const [bulkMode, setBulkMode] = useState(false);
   const [emailInput, setEmailInput] = useState("");
@@ -231,6 +234,17 @@ export default function Deelnemers() {
                       >
                         + speler
                       </button>
+                      {t.teamsAsReferees && (
+                        <button
+                          className="btn-ghost text-xs"
+                          title="Scheidslink: hier vult dit team de uitslagen in van de wedstrijden die het fluit"
+                          onClick={() =>
+                            copy(`ref-${team.id}`, appUrl(`/scheids/${t.id}/${team.id}${liveQuery(t, true)}`))
+                          }
+                        >
+                          {copied === `ref-${team.id}` ? "✓ gekopieerd" : "🔗 scheidslink"}
+                        </button>
+                      )}
                       <button
                         className="btn-ghost text-red-500"
                         onClick={() => {
@@ -312,6 +326,22 @@ export default function Deelnemers() {
 
       {tab === "scheidsrechters" && (
         <>
+          <div className="card mb-4 flex flex-wrap items-center justify-between gap-4 p-4">
+            <div>
+              <div className="font-semibold">Teams als scheidsrechters</div>
+              <p className="mt-1 text-xs text-slate-500">
+                {t.teamsAsReferees
+                  ? "De planner wijst per wedstrijd een team uit dezelfde divisie aan dat op dat moment vrij is (eerlijk verdeeld). Kopieer de scheidslink per team op het Teams-tabblad."
+                  : "Geen eigen scheidsrechters? Laat teams elkaars wedstrijden fluiten — de planner verdeelt de fluitbeurten eerlijk."}
+              </p>
+            </div>
+            <Toggle
+              checked={!!t.teamsAsReferees}
+              onChange={(v) => u((x) => (x.teamsAsReferees = v))}
+              label={t.teamsAsReferees ? "Aan" : "Uit"}
+            />
+          </div>
+
           {t.referees.length === 0 ? (
             <EmptyState
               icon="🦺"
@@ -325,15 +355,41 @@ export default function Deelnemers() {
             />
           ) : (
             <>
-              <div className="card divide-y divide-slate-100">
-                {t.referees.map((r, i) => (
-                  <div key={r.id} className="flex items-center gap-3 px-4 py-2">
+              <div className={`card divide-y divide-slate-100 ${t.teamsAsReferees ? "opacity-60" : ""}`}>
+                {t.referees.map((r, i) => {
+                  const veldNames = (r.fieldIds ?? [])
+                    .map((id) => t.fields.find((f) => f.id === id)?.name)
+                    .filter(Boolean);
+                  const divNames = (r.divisionIds ?? [])
+                    .map((id) => t.divisions.find((d) => d.id === id)?.name)
+                    .filter(Boolean);
+                  return (
+                  <div key={r.id} className="flex flex-wrap items-center gap-3 px-4 py-2">
                     <span className="w-6 text-xs text-slate-400">{i + 1}</span>
                     <input
-                      className="input border-0"
+                      className="input w-40 border-0"
                       value={r.name}
                       onChange={(e) => u((x) => (x.referees.find((y) => y.id === r.id)!.name = e.target.value))}
                     />
+                    <span className="text-xs text-slate-500">
+                      {veldNames.length ? veldNames.join(", ") : "Alle velden"}
+                    </span>
+                    <span className="text-xs text-slate-500">
+                      · {divNames.length ? divNames.join(", ") : "Alle divisies"}
+                    </span>
+                    {r.maxMatches !== undefined && (
+                      <span className="text-xs text-slate-500">· max {r.maxMatches}</span>
+                    )}
+                    <button
+                      className="btn-ghost text-xs"
+                      title="Velden, divisies en maximum aantal wedstrijden instellen"
+                      onClick={() => {
+                        setEditRefId(r.id);
+                        setModal("editReferee");
+                      }}
+                    >
+                      ✎ voorkeuren
+                    </button>
                     <button
                       className="btn-ghost text-xs"
                       title="Inloglink: pagina waar deze scheidsrechter zijn uitslagen invult"
@@ -351,8 +407,15 @@ export default function Deelnemers() {
                       ✕
                     </button>
                   </div>
-                ))}
+                  );
+                })}
               </div>
+              {t.teamsAsReferees && (
+                <p className="mt-2 text-xs text-amber-700">
+                  De schakelaar "Teams als scheidsrechters" staat aan: de planner gebruikt de teams
+                  en slaat deze lijst over.
+                </p>
+              )}
               <button className="btn-primary mt-4" onClick={() => setModal("referee")}>
                 Voeg scheidsrechter toe
               </button>
@@ -679,6 +742,85 @@ export default function Deelnemers() {
           <ModalActions onCancel={() => setModal(null)} onSubmit={addTeams} disabled={!nameInput.trim()} />
         </Modal>
       )}
+
+      {modal === "editReferee" &&
+        editRefId &&
+        (() => {
+          const ref = t.referees.find((r) => r.id === editRefId);
+          if (!ref) return null;
+          const setRef = (fn: (r: (typeof t.referees)[0]) => void) =>
+            u((x) => {
+              const rr = x.referees.find((y) => y.id === editRefId);
+              if (rr) fn(rr);
+            });
+          const toggleIn = (list: string[] | undefined, id: string): string[] | undefined => {
+            const cur = list ?? [];
+            const next = cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id];
+            return next.length ? next : undefined;
+          };
+          return (
+            <Modal title={`${ref.name} — voorkeuren`} onClose={() => setModal(null)}>
+              <div className="space-y-5">
+                <div>
+                  <label className="label">Locaties en velden</label>
+                  <p className="mb-2 text-xs text-slate-500">Niets aangevinkt = alle velden.</p>
+                  {t.fields.length === 0 && (
+                    <p className="text-xs text-slate-400">Nog geen velden (Schema-pagina).</p>
+                  )}
+                  <div className="grid grid-cols-2 gap-1">
+                    {t.fields.map((f) => (
+                      <label key={f.id} className="flex cursor-pointer items-center gap-2 text-sm">
+                        <input
+                          type="checkbox"
+                          checked={(ref.fieldIds ?? []).includes(f.id)}
+                          onChange={() => setRef((r) => (r.fieldIds = toggleIn(r.fieldIds, f.id)))}
+                        />
+                        {f.name}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <label className="label">Divisies</label>
+                  <p className="mb-2 text-xs text-slate-500">Niets aangevinkt = alle divisies.</p>
+                  <div className="grid grid-cols-2 gap-1">
+                    {t.divisions.map((d) => (
+                      <label key={d.id} className="flex cursor-pointer items-center gap-2 text-sm">
+                        <input
+                          type="checkbox"
+                          checked={(ref.divisionIds ?? []).includes(d.id)}
+                          onChange={() =>
+                            setRef((r) => (r.divisionIds = toggleIn(r.divisionIds, d.id)))
+                          }
+                        />
+                        {d.name}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <label className="label">Maximaal aantal wedstrijden (leeg = onbeperkt)</label>
+                  <input
+                    type="number"
+                    min={0}
+                    className="input w-24"
+                    value={ref.maxMatches ?? ""}
+                    onChange={(e) =>
+                      setRef((r) => (r.maxMatches = e.target.value === "" ? undefined : Math.max(0, +e.target.value)))
+                    }
+                  />
+                </div>
+                <p className="text-xs text-slate-400">
+                  De planner past dit toe bij "Plan automatisch"; handmatige toewijzingen blijven
+                  altijd staan.
+                </p>
+              </div>
+              <div className="mt-6 flex justify-end">
+                <button className="btn-primary" onClick={() => setModal(null)}>Klaar</button>
+              </div>
+            </Modal>
+          );
+        })()}
 
       {modal === "referee" && (
         <Modal title="Voeg scheidsrechter toe" onClose={() => setModal(null)}>

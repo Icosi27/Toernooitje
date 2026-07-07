@@ -93,6 +93,89 @@ describe("autoSchedule", () => {
   });
 });
 
+describe("scheidsrechter-voorkeuren", () => {
+  it("respecteert de veldbeperking van een scheidsrechter", () => {
+    const t = makeTournament(8, 2, 2);
+    t.referees[0].fieldIds = ["f0"];
+    t.referees[1].fieldIds = ["f1"];
+    autoSchedule(t);
+    for (const d of t.divisions)
+      for (const m of allMatches(d)) {
+        if (m.refereeId === "r0") expect(m.fieldId).toBe("f0");
+        if (m.refereeId === "r1") expect(m.fieldId).toBe("f1");
+      }
+  });
+
+  it("respecteert de divisiebeperking van een scheidsrechter", () => {
+    const t = makeTournament(8, 2, 2);
+    const andereDivisie = "niet-bestaande-divisie";
+    t.referees[0].divisionIds = [andereDivisie]; // mag nergens fluiten
+    autoSchedule(t);
+    for (const d of t.divisions)
+      for (const m of allMatches(d)) expect(m.refereeId).not.toBe("r0");
+  });
+
+  it("respecteert het maximum aantal wedstrijden", () => {
+    const t = makeTournament(8, 2, 2);
+    t.referees[0].maxMatches = 3;
+    autoSchedule(t);
+    const count = t.divisions
+      .flatMap((d) => allMatches(d))
+      .filter((m) => m.refereeId === "r0").length;
+    expect(count).toBeLessThanOrEqual(3);
+  });
+});
+
+describe("teams als scheidsrechters", () => {
+  it("wijst fluitende teams toe die zelf niet spelen op dat moment", () => {
+    const t = makeTournament(8, 2, 0);
+    t.teamsAsReferees = true;
+    autoSchedule(t);
+    const slotLen = t.matchDuration + t.breakBetween;
+    const all = t.divisions.flatMap((d) => allMatches(d));
+    let assigned = 0;
+    for (const m of all) {
+      if (!m.refereeTeamId) continue;
+      assigned++;
+      // het fluitende team speelt niet mee in deze wedstrijd
+      for (const s of [m.a, m.b])
+        if (s.kind === "team") expect(s.teamId).not.toBe(m.refereeTeamId);
+      // en heeft geen eigen wedstrijd die overlapt
+      const end = addMinutes(m.start!, slotLen);
+      for (const other of all) {
+        if (other.id === m.id || !other.start) continue;
+        const participates = [other.a, other.b].some(
+          (s) => s.kind === "team" && s.teamId === m.refereeTeamId
+        );
+        if (!participates) continue;
+        const otherEnd = addMinutes(other.start, slotLen);
+        expect(m.start! >= otherEnd || end <= other.start).toBe(true);
+      }
+    }
+    expect(assigned).toBeGreaterThan(0);
+  });
+
+  it("verdeelt de fluitbeurten eerlijk", () => {
+    const t = makeTournament(8, 2, 0);
+    t.teamsAsReferees = true;
+    autoSchedule(t);
+    const counts: Record<string, number> = {};
+    for (const d of t.divisions)
+      for (const m of allMatches(d))
+        if (m.refereeTeamId) counts[m.refereeTeamId] = (counts[m.refereeTeamId] ?? 0) + 1;
+    const values = Object.values(counts);
+    expect(Math.max(...values) - Math.min(...values)).toBeLessThanOrEqual(2);
+  });
+
+  it("laat vaste scheidsrechters ongemoeid als de schakelaar uit staat", () => {
+    const t = makeTournament(8, 2, 2);
+    autoSchedule(t);
+    const all = t.divisions.flatMap((d) => allMatches(d));
+    expect(all.every((m) => !m.refereeTeamId)).toBe(true);
+    expect(all.some((m) => m.refereeId)).toBe(true);
+  });
+});
+
 describe("shiftSchedule", () => {
   it("schuift alleen niet-gespeelde wedstrijden op", () => {
     const t = autoSchedule(makeTournament(4, 1));
