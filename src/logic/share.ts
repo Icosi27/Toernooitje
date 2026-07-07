@@ -2,13 +2,34 @@ import { compressToEncodedURIComponent, decompressFromEncodedURIComponent } from
 import type { Tournament } from "../types";
 
 /**
+ * Publieke versie van een toernooi: persoonsgegevens (e-mails, telefoons,
+ * geboortedata, inschrijvingen, beheerders) en geheimen (writeKey) worden
+ * gestript vóór publicatie of delen. AVG én kleinere links/blobs.
+ */
+export function publicView(t: Tournament): Tournament {
+  const pub: Tournament = JSON.parse(JSON.stringify(t));
+  delete (pub as Partial<Tournament>).cloud;
+  pub.admins = [];
+  pub.registrations = [];
+  pub.referees = pub.referees.map((r) => ({ id: r.id, name: r.name }));
+  for (const d of pub.divisions) {
+    for (const team of d.teams) {
+      team.email = undefined;
+      for (const p of team.players) p.birthDate = undefined;
+    }
+    for (const p of d.players) p.birthDate = undefined;
+  }
+  return pub;
+}
+
+/**
  * Deellink: het hele toernooi wordt gecomprimeerd in de URL gestopt, zodat
  * deelnemers de standen kunnen bekijken zonder server. Afbeeldingen (logo's,
  * achtergrond, sponsors) worden weggelaten om de link kort te houden.
  * Let op: het is een momentopname — na nieuwe uitslagen deel je de link opnieuw.
  */
 export function encodeShare(t: Tournament): string {
-  const slim: Tournament = JSON.parse(JSON.stringify(t));
+  const slim = publicView(t);
   slim.presentation.logo = undefined;
   slim.presentation.background = undefined;
   slim.presentation.sponsors = [];

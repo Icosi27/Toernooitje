@@ -57,6 +57,25 @@ export function resolveSlot(slot: Slot, d: Division, scoring: ScoringConfig): Te
   }
 }
 
+/**
+ * Welke plekken in deze poule stromen door naar een knock-outfase?
+ * Afgeleid uit de pouleRank-slots in de brackets van de divisie.
+ */
+export function qualifyingRanks(d: Division, pouleId: ID): number[] {
+  const ranks = new Set<number>();
+  for (const s of d.stages) {
+    if (s.type !== "bracket") continue;
+    for (const r of s.rounds) {
+      for (const m of r.matches) {
+        for (const slot of [m.a, m.b]) {
+          if (slot.kind === "pouleRank" && slot.pouleId === pouleId) ranks.add(slot.rank);
+        }
+      }
+    }
+  }
+  return [...ranks].sort((a, b) => a - b);
+}
+
 /** Weergavenaam van een slot, met poule-namen als placeholder. */
 export function slotLabel(slot: Slot, d: Division, scoring: ScoringConfig): string {
   const team = resolveSlot(slot, d, scoring);

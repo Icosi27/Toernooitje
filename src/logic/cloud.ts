@@ -2,6 +2,7 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { useEffect, useRef, useState } from "react";
 import type { Registration, Tournament } from "../types";
 import { allMatches } from "./resolve";
+import { publicView } from "./share";
 import { useApp } from "../store";
 
 /**
@@ -78,12 +79,11 @@ export interface ScoreRow {
 export async function publishTournament(t: Tournament): Promise<void> {
   const sb = getClient();
   if (!sb || !t.cloud) return;
-  const slim: Tournament = JSON.parse(JSON.stringify(t));
-  delete (slim as Partial<Tournament>).cloud; // sleutel nooit publiceren
+  // publiceer de publieke versie: geen writeKey, geen persoonsgegevens
   const { error } = await sb.rpc("publish_tournament", {
     p_id: t.id,
     p_key: t.cloud.writeKey,
-    p_data: slim,
+    p_data: publicView(t),
   });
   if (error) throw new Error(error.message);
 }

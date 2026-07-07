@@ -77,15 +77,46 @@ export function autoSchedule(t: Tournament): Tournament {
     for (const tid of tids) teamFree[tid] = end;
   }
 
-  // scheidsrechters rouleren
+  // scheidsrechters toewijzen zonder dubbelboekingen: alleen wie op dat
+  // moment vrij is; niemand vrij -> leeg laten (handmatig oplossen)
   if (t.referees.length > 0) {
-    let ri = 0;
-    for (const item of queue) {
-      item.match.refereeId = t.referees[ri % t.referees.length].id;
-      ri++;
+    const refFree: Record<string, string> = {};
+    for (const r of t.referees) refFree[r.id] = "00:00";
+    const chrono = [...queue].sort((a, b) =>
+      (a.match.start ?? "99:99").localeCompare(b.match.start ?? "99:99")
+    );
+    for (const item of chrono) {
+      const m = item.match;
+      if (!m.start) continue;
+      const candidates = t.referees.filter((r) => refFree[r.id] <= m.start!);
+      if (candidates.length === 0) {
+        m.refereeId = undefined;
+        continue;
+      }
+      // wie het langst geleden gefloten heeft, is aan de beurt
+      candidates.sort((a, b) => refFree[a.id].localeCompare(refFree[b.id]));
+      m.refereeId = candidates[0].id;
+      refFree[candidates[0].id] = addMinutes(m.start, slotLen);
     }
   }
   return t;
+}
+
+/**
+ * Uitloop op de dag zelf: schuif alle nog niet gespeelde, geplande
+ * wedstrijden een aantal minuten op (negatief = terug).
+ */
+export function shiftSchedule(t: Tournament, minutes: number): number {
+  let count = 0;
+  for (const d of t.divisions) {
+    for (const m of allMatches(d)) {
+      if (!m.start) continue;
+      if (m.scoreA !== undefined && m.scoreB !== undefined) continue;
+      m.start = addMinutes(m.start, minutes);
+      count++;
+    }
+  }
+  return count;
 }
 
 /** Alle geplande wedstrijden van het toernooi, gesorteerd op tijd en veld. */

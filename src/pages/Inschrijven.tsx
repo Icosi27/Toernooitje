@@ -82,7 +82,7 @@ function Form({ t, isLocal }: { t: Tournament; isLocal: boolean }) {
 
   return (
     <div className="min-h-screen" style={{ ["--accent" as string]: t.presentation.accentColor }}>
-      <header className="px-6 py-6 text-white" style={{ background: "var(--accent)" }}>
+      <header className="accent-header px-6 py-6 text-white">
         <div className="mx-auto flex max-w-lg items-center justify-between gap-4">
           <div>
             <h1 className="text-xl font-bold">{t.name}</h1>

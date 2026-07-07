@@ -17,9 +17,10 @@ import { DonateButton } from "../components/monetization";
  * (met een korte vertraging) gepubliceerd, en uitslagen die scheidsrechters
  * op hun eigen telefoon invullen stromen live het dashboard binnen.
  */
-function useCloudSync(t: Tournament | undefined) {
+function useCloudSync(t: Tournament | undefined): { error: boolean; lastSync: string | null; retry: () => void } {
   const update = useApp((s) => s.updateTournament);
   const [syncError, setSyncError] = useState(false);
+  const [lastSync, setLastSync] = useState<string | null>(null);
   const online = !!t?.cloud?.online;
   const tJson = useMemo(
     () => (online ? JSON.stringify({ ...t, cloud: undefined }) : ""),
@@ -37,7 +38,10 @@ function useCloudSync(t: Tournament | undefined) {
     }
     const h = setTimeout(() => {
       publishTournament(t)
-        .then(() => setSyncError(false))
+        .then(() => {
+          setSyncError(false);
+          setLastSync(new Date().toLocaleTimeString("nl-NL", { hour: "2-digit", minute: "2-digit" }));
+        })
         .catch(() => setSyncError(true));
     }, 1500);
     return () => clearTimeout(h);
@@ -88,23 +92,35 @@ function useCloudSync(t: Tournament | undefined) {
     return () => clearInterval(iv);
   }, [t?.id, online]);
 
-  return syncError;
+  const retry = () => {
+    if (!t) return;
+    publishTournament(t)
+      .then(() => {
+        setSyncError(false);
+        setLastSync(new Date().toLocaleTimeString("nl-NL", { hour: "2-digit", minute: "2-digit" }));
+      })
+      .catch(() => setSyncError(true));
+  };
+
+  return { error: syncError, lastSync, retry };
 }
 
+// volgorde = de natuurlijke route: opzetten -> deelnemers -> indeling ->
+// schema -> uitslagen -> presenteren
 const NAV = [
   { to: "", icon: "⚙️", label: "Algemeen", end: true },
   { to: "deelnemers", icon: "👕", label: "Deelnemers" },
   { to: "indeling", icon: "🗂️", label: "Indeling" },
   { to: "schema", icon: "📅", label: "Schema" },
-  { to: "presentatie", icon: "🖥️", label: "Presentatie" },
   { to: "resultaten", icon: "🔢", label: "Resultaten" },
+  { to: "presentatie", icon: "🖥️", label: "Presentatie" },
 ];
 
 export default function Dashboard() {
   const { id } = useParams();
   const t = useTournament(id);
   const nav = useNavigate();
-  useCloudSync(t);
+  const sync = useCloudSync(t);
 
   if (!t) {
     return (
@@ -117,14 +133,28 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen" style={{ ["--accent" as string]: t.presentation.accentColor }}>
-      <header
-        className="sticky top-0 z-40 flex items-center justify-between px-4 py-3 text-white"
-        style={{ background: "var(--accent)" }}
-      >
+      <header className="accent-header sticky top-0 z-40 flex items-center justify-between px-4 py-3 text-white">
         <button className="flex items-center gap-3 text-lg font-bold cursor-pointer" onClick={() => nav("/")}>
           <span>←</span> {t.name}
         </button>
         <div className="flex items-center gap-3">
+          {t.cloud?.online &&
+            (sync.error ? (
+              <button
+                onClick={sync.retry}
+                className="cursor-pointer rounded-full bg-amber-400 px-3 py-1 text-xs font-bold text-amber-950"
+                title="Publiceren mislukt — klik om opnieuw te proberen"
+              >
+                ⚠ Niet gesynchroniseerd — opnieuw
+              </button>
+            ) : (
+              <span
+                className="rounded-full bg-white/15 px-3 py-1 text-xs font-semibold"
+                title="Wijzigingen worden automatisch gepubliceerd"
+              >
+                ● Live{sync.lastSync ? ` · ${sync.lastSync}` : ""}
+              </span>
+            ))}
           <DonateButton small />
           <Link to={`/live/${t.id}`} className="btn text-white text-sm hover:bg-white/10">
             🖥️ Presentatie

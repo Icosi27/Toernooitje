@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useOutletContext } from "react-router-dom";
 import type { FormatTemplate, Tournament } from "../../types";
 import { useApp } from "../../store";
-import { Modal, ModalActions } from "../../components/ui";
+import { Modal, ModalActions, useDivIdx } from "../../components/ui";
 import { FORMATS, buildFormat, nextPowerOfTwo, seedKnockoutWithTeams } from "../../logic/formats";
 import { buildBracket } from "../../logic/bracket";
 import { buildIndividualStage } from "../../logic/individual";
@@ -16,7 +16,7 @@ export default function Indeling() {
   const update = useApp((s) => s.updateTournament);
   const u = (fn: (t: Tournament) => void) => update(t.id, fn);
 
-  const [divIdx, setDivIdx] = useState(0);
+  const [divIdx, setDivIdx] = useDivIdx(t.id, t.divisions.length);
   const div = t.divisions[Math.min(divIdx, t.divisions.length - 1)];
   const [pick, setPick] = useState<FormatTemplate | "poule" | "bracket" | null>(null);
 

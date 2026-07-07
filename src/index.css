@@ -2,11 +2,64 @@
 
 :root {
   --accent: #3722e0;
+  --accent-strong: color-mix(in oklab, var(--accent) 70%, black);
+  --accent-soft: color-mix(in oklab, var(--accent) 9%, white);
 }
 
 body {
   @apply bg-slate-50 text-slate-900 antialiased;
   font-family: "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+/* Cijfers in standen en scores verspringen niet bij live updates */
+table,
+.score {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Toernooi-accent als levendige gradient i.p.v. één platte vlek */
+.accent-header {
+  background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+}
+
+/* Grote score-invoer zonder native spinners (scheidsrechterportaal) */
+.score-input {
+  @apply h-12 w-16 rounded-lg border border-slate-300 text-center text-2xl font-bold;
+  font-variant-numeric: tabular-nums;
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+.score-input::-webkit-outer-spin-button,
+.score-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+/* Presentatiemodus: donker en groot voor het scherm in de kantine */
+[data-pres="true"] {
+  background: #020617;
+  color: #e2e8f0;
+  min-height: 100vh;
+}
+[data-pres="true"] .card {
+  background: #0f172a;
+  border-color: #1e293b;
+  color: #e2e8f0;
+}
+[data-pres="true"] table {
+  font-size: 1.35rem;
+}
+[data-pres="true"] .text-slate-400,
+[data-pres="true"] .text-slate-500,
+[data-pres="true"] .text-slate-600 {
+  color: #94a3b8;
+}
+[data-pres="true"] .border-slate-100,
+[data-pres="true"] .border-slate-200 {
+  border-color: #1e293b;
+}
+[data-pres="true"] .bg-slate-100 {
+  background: #1e293b;
 }
 
 .btn,

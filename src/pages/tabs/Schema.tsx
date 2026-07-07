@@ -3,7 +3,7 @@ import { useOutletContext } from "react-router-dom";
 import type { Tournament } from "../../types";
 import { useApp } from "../../store";
 import { EmptyState, Modal, ModalActions } from "../../components/ui";
-import { autoSchedule, scheduledMatches } from "../../logic/schedule";
+import { autoSchedule, scheduledMatches, shiftSchedule } from "../../logic/schedule";
 import { allMatches, slotLabel } from "../../logic/resolve";
 import { uid } from "../../logic/id";
 
@@ -52,6 +52,23 @@ export default function Schema() {
         </button>
       </div>
 
+      {rows.length > 0 && (
+        <div className="mb-4 flex flex-wrap items-center gap-2 text-sm text-slate-600">
+          <span title="Schuift alle nog niet gespeelde wedstrijden op — gespeelde blijven staan">
+            ⏱️ Uitloop? Schuif de rest op:
+          </span>
+          {[-5, 5, 10, 15].map((m) => (
+            <button
+              key={m}
+              className="btn-outline px-3 py-1"
+              onClick={() => u((x) => void shiftSchedule(x, m))}
+            >
+              {m > 0 ? `+${m}` : m} min
+            </button>
+          ))}
+        </div>
+      )}
+
       {t.fields.length > 0 && (
         <div className="mb-6 flex flex-wrap gap-2">
           {t.fields.map((f) => (
@@ -60,13 +77,14 @@ export default function Schema() {
               {f.startTime && <span className="text-xs text-slate-400">vanaf {f.startTime}</span>}
               <button
                 className="cursor-pointer text-slate-400 hover:text-red-500"
-                onClick={() =>
+                onClick={() => {
+                  if (!confirm(`Veld "${f.name}" verwijderen? Wedstrijden op dit veld raken hun veldtoewijzing kwijt.`)) return;
                   u((x) => {
                     x.fields = x.fields.filter((y) => y.id !== f.id);
                     for (const d of x.divisions)
                       for (const m of allMatches(d)) if (m.fieldId === f.id) m.fieldId = undefined;
-                  })
-                }
+                  });
+                }}
               >
                 ✕
               </button>

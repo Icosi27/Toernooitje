@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useOutletContext } from "react-router-dom";
 import type { Tournament } from "../../types";
 import { useApp } from "../../store";
-import { EmptyState, Modal, ModalActions, Section, Toggle } from "../../components/ui";
+import { EmptyState, Modal, ModalActions, Section, Toggle, useDivIdx } from "../../components/ui";
 import { appUrl, copyText } from "../../logic/share";
 import { decideRegistration, liveQuery } from "../../logic/cloud";
 import { fileToDataUrl } from "../../logic/files";
@@ -17,7 +17,7 @@ export default function Deelnemers() {
   const u = (fn: (t: Tournament) => void) => update(t.id, fn);
 
   const [tab, setTab] = useState<Tab>("teams");
-  const [divIdx, setDivIdx] = useState(0);
+  const [divIdx, setDivIdx] = useDivIdx(t.id, t.divisions.length);
   const [modal, setModal] = useState<null | "team" | "referee" | "admin" | "player" | "editTeam">(null);
   const [editTeamId, setEditTeamId] = useState<string | null>(null);
   const [nameInput, setNameInput] = useState("");
@@ -233,12 +233,13 @@ export default function Deelnemers() {
                       </button>
                       <button
                         className="btn-ghost text-red-500"
-                        onClick={() =>
+                        onClick={() => {
+                          if (!confirm(`Team "${team.name}" verwijderen?`)) return;
                           u((x) => {
                             const d = x.divisions.find((d) => d.id === div.id)!;
                             d.teams = d.teams.filter((tm) => tm.id !== team.id);
-                          })
-                        }
+                          });
+                        }}
                       >
                         ✕
                       </button>
@@ -342,7 +343,10 @@ export default function Deelnemers() {
                     </button>
                     <button
                       className="btn-ghost text-red-500"
-                      onClick={() => u((x) => (x.referees = x.referees.filter((y) => y.id !== r.id)))}
+                      onClick={() => {
+                        if (!confirm(`Scheidsrechter "${r.name}" verwijderen?`)) return;
+                        u((x) => (x.referees = x.referees.filter((y) => y.id !== r.id)));
+                      }}
                     >
                       ✕
                     </button>

@@ -132,3 +132,20 @@ export function EmptyState({
 export function numberOrUndef(v: string): number | undefined {
   return v === "" ? undefined : Number(v);
 }
+
+/**
+ * Divisiekeuze die over tabbladen heen onthouden wordt (per toernooi),
+ * zodat je niet per ongeluk op de verkeerde divisie werkt na tab-wissel.
+ */
+export function useDivIdx(tournamentId: string, count: number): [number, (v: number) => void] {
+  const key = `toernooitje-div-${tournamentId}`;
+  const [idx, setIdx] = useState(() => {
+    const raw = sessionStorage.getItem(key);
+    return raw ? Number(raw) : 0;
+  });
+  const set = (v: number) => {
+    setIdx(v);
+    sessionStorage.setItem(key, String(v));
+  };
+  return [Math.min(idx, Math.max(0, count - 1)), set];
+}

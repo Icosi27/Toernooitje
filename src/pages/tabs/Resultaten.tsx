@@ -1,8 +1,7 @@
-import { useState } from "react";
-import { useOutletContext } from "react-router-dom";
+import { Link, useOutletContext } from "react-router-dom";
 import type { Match, Tournament } from "../../types";
 import { useApp } from "../../store";
-import { EmptyState } from "../../components/ui";
+import { EmptyState, useDivIdx } from "../../components/ui";
 import { pouleStandings } from "../../logic/standings";
 import { individualStandings } from "../../logic/individual";
 import { allMatches, slotLabel, winnerOf } from "../../logic/resolve";
@@ -12,7 +11,7 @@ import { TeamBadge } from "../../components/TeamBadge";
 export default function Resultaten() {
   const t = useOutletContext<Tournament>();
   const update = useApp((s) => s.updateTournament);
-  const [divIdx, setDivIdx] = useState(0);
+  const [divIdx, setDivIdx] = useDivIdx(t.id, t.divisions.length);
   const div = t.divisions[Math.min(divIdx, t.divisions.length - 1)];
 
   const setScore = (matchId: string, side: "A" | "B" | "pA" | "pB", val: string) => {
@@ -90,15 +89,24 @@ export default function Resultaten() {
 
   return (
     <div className="mx-auto max-w-4xl">
-      <select
-        className="card mb-6 cursor-pointer px-3 py-2 text-sm font-semibold"
-        value={divIdx}
-        onChange={(e) => setDivIdx(+e.target.value)}
-      >
-        {t.divisions.map((d, i) => (
-          <option key={d.id} value={i}>{d.name}</option>
-        ))}
-      </select>
+      <div className="mb-6 flex flex-wrap items-center gap-3">
+        <select
+          className="card cursor-pointer px-3 py-2 text-sm font-semibold"
+          value={divIdx}
+          onChange={(e) => setDivIdx(+e.target.value)}
+        >
+          {t.divisions.map((d, i) => (
+            <option key={d.id} value={i}>{d.name}</option>
+          ))}
+        </select>
+        <Link
+          to={`/invoer/${t.id}`}
+          className="btn-outline"
+          title="Alle wedstrijden chronologisch invoeren — handig als de uitslagbriefjes op tijdsvolgorde binnenkomen"
+        >
+          🧾 Wedstrijdtafel-modus (op tijd)
+        </Link>
+      </div>
 
       {div.stages.map((s) => (
         <div key={s.id} className="mb-8">
