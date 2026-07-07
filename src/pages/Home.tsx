@@ -1,6 +1,8 @@
+import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useApp } from "../store";
 import { signOut, useSession } from "../logic/auth";
+import { listAccountTournaments, pullToDevice, type AccountRow } from "../logic/account";
 import { DonateButton } from "../components/monetization";
 
 export default function Home() {
@@ -9,6 +11,19 @@ export default function Home() {
   const session = useSession();
   const userName =
     (session?.user.user_metadata?.name as string | undefined) ?? session?.user.email;
+
+  // toernooien die in het account staan maar (nog) niet op dit apparaat
+  const [accountRows, setAccountRows] = useState<AccountRow[]>([]);
+  useEffect(() => {
+    if (!session) {
+      setAccountRows([]);
+      return;
+    }
+    listAccountTournaments()
+      .then(setAccountRows)
+      .catch(() => setAccountRows([]));
+  }, [session?.user.id, tournaments.length]);
+  const remoteOnly = accountRows.filter((r) => !tournaments.some((t) => t.id === r.tournament_id));
 
   return (
     <div className="min-h-screen">
@@ -46,6 +61,35 @@ export default function Home() {
             + Nieuw toernooi
           </button>
         </div>
+
+        {remoteOnly.length > 0 && (
+          <div className="mb-6">
+            <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-slate-500">
+              ☁️ In je account (van een ander apparaat)
+            </h2>
+            <div className="card divide-y divide-slate-100">
+              {remoteOnly.map((r) => (
+                <div key={r.tournament_id} className="flex items-center justify-between gap-3 p-4">
+                  <div>
+                    <div className="font-semibold">{r.data.name}</div>
+                    <div className="text-xs text-slate-500">
+                      laatst bewerkt {new Date(r.updated_at).toLocaleString("nl-NL")}
+                    </div>
+                  </div>
+                  <button
+                    className="btn-primary shrink-0"
+                    onClick={() => {
+                      pullToDevice(r);
+                      nav(`/t/${r.tournament_id}`);
+                    }}
+                  >
+                    Zet op dit apparaat
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {tournaments.length > 0 && (
           <div className="card divide-y divide-slate-100">

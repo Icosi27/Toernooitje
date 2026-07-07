@@ -10,6 +10,8 @@ import {
   subscribeScores,
   type ScoreRow,
 } from "../logic/cloud";
+import { saveTournamentToAccount } from "../logic/account";
+import { useSession } from "../logic/auth";
 import { DonateButton } from "../components/monetization";
 
 /**
@@ -116,11 +118,25 @@ const NAV = [
   { to: "presentatie", icon: "🖥️", label: "Presentatie" },
 ];
 
+/** Ingelogd? Dan gaat elke wijziging (debounced) als back-up naar het account. */
+function useAccountBackup(t: Tournament | undefined) {
+  const session = useSession();
+  const json = t ? JSON.stringify(t) : "";
+  useEffect(() => {
+    if (!t || !session) return;
+    const h = setTimeout(() => {
+      saveTournamentToAccount(t, session.user.id).catch(() => {});
+    }, 3000);
+    return () => clearTimeout(h);
+  }, [json, session?.user.id]);
+}
+
 export default function Dashboard() {
   const { id } = useParams();
   const t = useTournament(id);
   const nav = useNavigate();
   const sync = useCloudSync(t);
+  useAccountBackup(t);
 
   if (!t) {
     return (
