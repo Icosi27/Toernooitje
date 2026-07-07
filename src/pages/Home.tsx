@@ -1,10 +1,14 @@
 import { Link, useNavigate } from "react-router-dom";
 import { useApp } from "../store";
+import { signOut, useSession } from "../logic/auth";
 import { DonateButton } from "../components/monetization";
 
 export default function Home() {
   const { tournaments, deleteTournament } = useApp();
   const nav = useNavigate();
+  const session = useSession();
+  const userName =
+    (session?.user.user_metadata?.name as string | undefined) ?? session?.user.email;
 
   return (
     <div className="min-h-screen">
@@ -12,7 +16,21 @@ export default function Home() {
         <Link to="/" className="flex items-center gap-2 text-xl font-bold">🏆 Toernooitje</Link>
         <div className="flex items-center gap-4">
           <DonateButton small />
-          <Link to="/" className="text-sm underline opacity-80">homepage</Link>
+          {session ? (
+            <span className="flex items-center gap-3 text-sm">
+              <span className="opacity-90">👤 {userName}</span>
+              <button className="cursor-pointer underline opacity-80" onClick={() => signOut()}>
+                Uitloggen
+              </button>
+            </span>
+          ) : (
+            <span className="flex items-center gap-3 text-sm">
+              <Link to="/login" className="underline opacity-80">Inloggen</Link>
+              <Link to="/registreren" className="rounded-full bg-white px-3 py-1 font-bold" style={{ color: "var(--accent)" }}>
+                Registreren
+              </Link>
+            </span>
+          )}
         </div>
       </header>
 
@@ -20,7 +38,9 @@ export default function Home() {
         <div className="mb-8 text-center">
           <h1 className="text-3xl font-bold">Mijn toernooien</h1>
           <p className="mt-2 text-slate-600">
-            Je toernooien staan veilig op dit apparaat. Accounts om overal in te loggen komen eraan.
+            {session
+              ? `Ingelogd als ${userName}. Je toernooien staan op dit apparaat en synchroniseren zodra je ze live zet.`
+              : "Je toernooien staan veilig op dit apparaat. Registreer om ze straks op elk apparaat terug te vinden."}
           </p>
           <button className="btn-primary mt-6" onClick={() => nav("/nieuw")}>
             + Nieuw toernooi

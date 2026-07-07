@@ -49,12 +49,15 @@ export default function Landing() {
             <a href="#over" className="opacity-90 hover:opacity-100">Over ons</a>
             <a href="#contact" className="opacity-90 hover:opacity-100">Contact</a>
           </div>
+          <Link to="/login" className="text-sm font-semibold text-white/90 hover:text-white">
+            Inloggen
+          </Link>
           <Link
-            to="/app"
+            to="/registreren"
             className="rounded-full bg-white px-4 py-1.5 text-sm font-bold"
             style={{ color: "var(--accent)" }}
           >
-            Inloggen
+            Registreren
           </Link>
         </div>
       </nav>
@@ -73,21 +76,21 @@ export default function Landing() {
           </p>
           <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
             <Link
-              to="/nieuw"
+              to="/registreren"
               className="rounded-full bg-white px-6 py-3 font-bold shadow-lg"
               style={{ color: "var(--accent)" }}
             >
-              Start gratis een toernooi
+              Registreer als organisator
             </Link>
             <Link
-              to="/app"
+              to="/nieuw"
               className="rounded-full border border-white/60 px-6 py-3 font-semibold text-white hover:bg-white/10"
             >
-              Inloggen
+              Of start direct zonder account
             </Link>
           </div>
           <p className="mt-4 text-xs opacity-70">
-            Geen account of creditcard nodig · direct aan de slag
+            Gratis account · geen creditcard nodig · direct aan de slag
           </p>
         </div>
       </header>

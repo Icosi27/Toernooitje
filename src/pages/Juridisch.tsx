@@ -7,7 +7,7 @@ function LegalPage({ title, updated, children }: { title: string; updated: strin
       <nav className="accent-header px-4 py-3 text-white">
         <div className="mx-auto flex max-w-3xl items-center justify-between">
           <Link to="/" className="flex items-center gap-2 font-black">🏆 Toernooitje</Link>
-          <Link to="/app" className="rounded-full bg-white px-4 py-1.5 text-sm font-bold" style={{ color: "var(--accent)" }}>
+          <Link to="/login" className="rounded-full bg-white px-4 py-1.5 text-sm font-bold" style={{ color: "var(--accent)" }}>
             Inloggen
           </Link>
         </div>
