@@ -174,12 +174,12 @@ function LiveInner({
 
   return (
     <div
-      className="min-h-screen"
+      className={slideshow ? "flex h-screen flex-col overflow-hidden" : "min-h-screen"}
       data-pres={slideshow ? "true" : undefined}
       style={{ ["--accent" as string]: t.presentation.accentColor }}
     >
       <header
-        className={`relative overflow-hidden px-6 py-10 text-white ${t.presentation.background ? "" : "stadium"}`}
+        className={`relative shrink-0 overflow-hidden px-6 text-white ${slideshow ? "py-6" : "py-10"} ${t.presentation.background ? "" : "stadium"}`}
         style={
           t.presentation.background
             ? {
@@ -204,7 +204,7 @@ function LiveInner({
         </div>
       </header>
 
-      <nav className="accent-header sticky top-0 z-30 px-4 py-2">
+      <nav className="accent-header sticky top-0 z-30 shrink-0 px-4 py-2">
         <div className={`mx-auto flex flex-wrap items-center gap-2 ${slideshow ? "max-w-6xl" : "max-w-4xl"}`}>
           {pages.map((p) => (
             <button
@@ -270,46 +270,62 @@ function LiveInner({
         </div>
       )}
 
-      <main className={`mx-auto space-y-8 px-4 py-8 ${slideshow ? "max-w-6xl" : "max-w-4xl"}`}>
-        {shared && !live && !slideshow && (
-          <p className="rounded bg-slate-100 px-3 py-2 text-center text-xs text-slate-500">
-            Gedeelde momentopname — vraag de organisator om een nieuwe link voor de laatste stand.
-          </p>
-        )}
-        {live && !slideshow && (
-          <p className="rounded bg-green-50 px-3 py-2 text-center text-xs text-green-700">
-            ● Live — standen en uitslagen worden automatisch bijgewerkt.
-          </p>
-        )}
+      {(() => {
+        const inhoud = (
+          <>
+            {shared && !live && !slideshow && (
+              <p className="rounded bg-slate-100 px-3 py-2 text-center text-xs text-slate-500">
+                Gedeelde momentopname — vraag de organisator om een nieuwe link voor de laatste stand.
+              </p>
+            )}
+            {live && !slideshow && (
+              <p className="rounded bg-green-50 px-3 py-2 text-center text-xs text-green-700">
+                ● Live — standen en uitslagen worden automatisch bijgewerkt.
+              </p>
+            )}
 
-        {myTeam && !slideshow && <NextMatchCard t={t} teamId={myTeam} />}
+            {myTeam && !slideshow && <NextMatchCard t={t} teamId={myTeam} />}
 
-        <AdBlock t={t} />
+            <AdBlock t={t} />
 
-        {page === "standen" && t.divisions.map((d) => <ChampionBanner key={`c-${d.id}`} t={t} d={d} />)}
+            {page === "standen" && t.divisions.map((d) => <ChampionBanner key={`c-${d.id}`} t={t} d={d} />)}
 
-        {page === "toernooi" && <ToernooiInfo t={t} />}
-        {page === "standen" && t.divisions.map((d) => <Standen key={d.id} t={t} d={d} myTeam={myTeam} />)}
-        {page === "schema" && (
-          <SchemaView
-            t={t}
-            myTeam={myTeam}
-            onFieldClick={pages.includes("plattegrond") ? showFieldOnMap : undefined}
-          />
-        )}
-        {page === "plattegrond" && (
-          <VenueMapView t={t} highlightFieldId={pinnedField ?? nextFieldFor(t, myTeam)} />
-        )}
+            {page === "toernooi" && <ToernooiInfo t={t} />}
+            {page === "standen" && t.divisions.map((d) => <Standen key={d.id} t={t} d={d} myTeam={myTeam} />)}
+            {page === "schema" && (
+              <SchemaView
+                t={t}
+                myTeam={myTeam}
+                onFieldClick={pages.includes("plattegrond") ? showFieldOnMap : undefined}
+              />
+            )}
+            {page === "plattegrond" && (
+              <VenueMapView t={t} highlightFieldId={pinnedField ?? nextFieldFor(t, myTeam)} />
+            )}
 
-        <AdBlock t={t} slot={1} />
+            <AdBlock t={t} slot={1} />
 
-        <footer className="flex flex-col items-center gap-3 border-t border-slate-200 py-6 text-center text-xs text-slate-400">
-          <div>
-            Gemaakt met <b>Toernooitje</b> — gratis toernooisoftware. Houd de app levend:
-          </div>
-          <DonateButton small />
-        </footer>
-      </main>
+            {!slideshow && (
+              <footer className="flex flex-col items-center gap-3 border-t border-slate-200 py-6 text-center text-xs text-slate-400">
+                <div>
+                  Gemaakt met <b>Toernooitje</b> — gratis toernooisoftware. Houd de app levend:
+                </div>
+                <DonateButton small />
+              </footer>
+            )}
+          </>
+        );
+        return slideshow ? (
+          // tv-modus: inhoudsvak vult de rest van het scherm, inhoud schaalt tot hij past
+          <main className="min-h-0 w-full flex-1 overflow-hidden px-4 py-4">
+            <FitToScreen key={page}>
+              <div className="mx-auto max-w-6xl space-y-8">{inhoud}</div>
+            </FitToScreen>
+          </main>
+        ) : (
+          <main className="mx-auto max-w-4xl space-y-8 px-4 py-8">{inhoud}</main>
+        );
+      })()}
     </div>
   );
 }
@@ -330,7 +346,7 @@ function LiveTicker({ t }: { t: Tournament }) {
   if (items.length < 3) return null;
   const doubled = [...items, ...items];
   return (
-    <div className="overflow-hidden bg-slate-950 py-1.5">
+    <div className="shrink-0 overflow-hidden bg-slate-950 py-1.5">
       <div className="ticker gap-10">
         {doubled.map((s, i) => (
           <span key={i} className="score whitespace-nowrap text-xs text-white/60">
