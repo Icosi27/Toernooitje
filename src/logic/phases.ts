@@ -82,6 +82,57 @@ export function startBracketStage(d: Division, stageId: ID, scoring: ScoringConf
   return true;
 }
 
+/** Alle kiesbare poule-plaatsingen van een divisie: elke poule × elke plek. */
+export function pouleRankOptions(
+  d: Division
+): { pouleId: ID; pouleName: string; rank: number }[] {
+  const out: { pouleId: ID; pouleName: string; rank: number }[] = [];
+  for (const s of d.stages) {
+    if (s.type !== "poules") continue;
+    for (const p of s.poules)
+      for (let rank = 1; rank <= p.teamIds.length; rank++)
+        out.push({ pouleId: p.id, pouleName: p.name, rank });
+  }
+  return out;
+}
+
+/**
+ * Controleer een handmatig ingeregelde eerste ronde: welke plaatsingen zijn
+ * dubbel gebruikt en welke kwalificatieplekken (t.o.v. het aantal slots)
+ * blijven leeg? Waarschuwen, niet blokkeren — de organisator houdt regie.
+ */
+export function seedingIssues(d: Division, stage: BracketStage): string[] {
+  const issues: string[] = [];
+  const first = stage.rounds[0]?.matches ?? [];
+  const pouleName = (id: ID) => {
+    for (const s of d.stages) {
+      if (s.type !== "poules") continue;
+      const p = s.poules.find((x) => x.id === id);
+      if (p) return p.name;
+    }
+    return "?";
+  };
+  const seen = new Map<string, number>();
+  let tbd = 0;
+  for (const m of first) {
+    for (const slot of [m.a, m.b]) {
+      if (slot.kind === "pouleRank") {
+        const key = `${slot.pouleId}:${slot.rank}`;
+        seen.set(key, (seen.get(key) ?? 0) + 1);
+      } else if (slot.kind === "tbd") tbd++;
+    }
+  }
+  for (const [key, count] of seen) {
+    if (count > 1) {
+      const [pouleId, rank] = key.split(":");
+      issues.push(`Nr. ${rank} ${pouleName(pouleId)} is ${count}× ingedeeld`);
+    }
+  }
+  if (tbd > 0 && seen.size > 0)
+    issues.push(`${tbd} plek${tbd !== 1 ? "ken" : ""} staat nog op N.t.b.`);
+  return issues;
+}
+
 /** Wedstrijden in nog niet gestarte fases (verbergen voor scheidsrechters). */
 export function gatedMatchIds(divisions: Division[]): Set<ID> {
   const ids = new Set<ID>();

@@ -6,7 +6,14 @@ import { pouleStandings } from "../../logic/standings";
 import { individualStandings } from "../../logic/individual";
 import { allMatches, slotLabel, winnerOf } from "../../logic/resolve";
 import { pushScore } from "../../logic/cloud";
-import { bracketReadiness, stageProgress, startBracketStage } from "../../logic/phases";
+import {
+  bracketReadiness,
+  pouleRankOptions,
+  seedingIssues,
+  stageProgress,
+  startBracketStage,
+} from "../../logic/phases";
+import { seedSlots } from "../../logic/bracket";
 import { TeamBadge } from "../../components/TeamBadge";
 
 export default function Resultaten() {
@@ -60,13 +67,63 @@ export default function Resultaten() {
     );
   };
 
-  const MatchRow = ({ m, ko, disabled }: { m: Match; ko?: boolean; disabled?: boolean }) => {
+  /** Kiesbare poule-plaatsing op een KO-slot, zolang de fase niet gestart is. */
+  const SlotSelect = ({ m, side, alignRight }: { m: Match; side: "a" | "b"; alignRight?: boolean }) => {
+    const slot = m[side];
+    const value = slot.kind === "pouleRank" ? `${slot.pouleId}:${slot.rank}` : "tbd";
+    return (
+      <select
+        className={`max-w-full cursor-pointer rounded border border-slate-200 bg-white px-1 py-0.5 ${alignRight ? "text-right" : ""}`}
+        value={value}
+        title="Kies welke poule-plaatsing hier speelt"
+        onChange={(e) => {
+          const v = e.target.value;
+          update(t.id, (x) => {
+            const dd = x.divisions.find((d) => d.id === div.id);
+            const mm = dd && allMatches(dd).find((y) => y.id === m.id);
+            if (!mm) return;
+            if (v === "tbd") mm[side] = { kind: "tbd" };
+            else {
+              const [pouleId, rank] = v.split(":");
+              mm[side] = { kind: "pouleRank", pouleId, rank: +rank };
+            }
+          });
+        }}
+      >
+        <option value="tbd">N.t.b.</option>
+        {pouleRankOptions(div).map((o) => (
+          <option key={`${o.pouleId}:${o.rank}`} value={`${o.pouleId}:${o.rank}`}>
+            Nr. {o.rank} {o.pouleName}
+          </option>
+        ))}
+      </select>
+    );
+  };
+
+  const MatchRow = ({
+    m,
+    ko,
+    disabled,
+    editableSlots,
+  }: {
+    m: Match;
+    ko?: boolean;
+    disabled?: boolean;
+    editableSlots?: boolean;
+  }) => {
     const drawInKo =
       ko && m.scoreA !== undefined && m.scoreB !== undefined && m.scoreA === m.scoreB;
+    const canEdit = (slot: Match["a"]) => editableSlots && (slot.kind === "pouleRank" || slot.kind === "tbd");
     return (
       <div className="flex items-center gap-2 border-t border-slate-100 py-1.5 text-sm">
         <span className="w-12 text-xs text-slate-400">{m.start ?? ""}</span>
-        <span className="flex-1 truncate text-right">{slotLabel(m.a, div, t.scoring)}</span>
+        {canEdit(m.a) ? (
+          <span className="flex flex-1 justify-end">
+            <SlotSelect m={m} side="a" alignRight />
+          </span>
+        ) : (
+          <span className="flex-1 truncate text-right">{slotLabel(m.a, div, t.scoring)}</span>
+        )}
         <input
           type="number"
           min={0}
@@ -84,7 +141,13 @@ export default function Resultaten() {
           value={m.scoreB ?? ""}
           onChange={(e) => setScore(m.id, "B", e.target.value)}
         />
-        <span className="flex-1 truncate">{slotLabel(m.b, div, t.scoring)}</span>
+        {canEdit(m.b) ? (
+          <span className="flex flex-1">
+            <SlotSelect m={m} side="b" />
+          </span>
+        ) : (
+          <span className="flex-1 truncate">{slotLabel(m.b, div, t.scoring)}</span>
+        )}
         {drawInKo && t.scoring.shootouts && (
           <span className="flex items-center gap-1 text-xs text-slate-500">
             pen.
@@ -229,11 +292,49 @@ export default function Resultaten() {
               );
             })}
 
+          {gated && (
+            <div className="mb-4 flex flex-wrap items-center gap-3 text-sm text-slate-600">
+              <span>
+                ✏️ De koppelingen hieronder zijn aan te passen totdat de fase start — kies per
+                wedstrijd zelf wie tegen wie speelt.
+              </span>
+              <button
+                className="btn-outline px-3 py-1 text-xs"
+                title="Zet de eerste ronde terug naar de standaard kruislingse indeling"
+                onClick={() =>
+                  update(t.id, (x) => {
+                    const dd = x.divisions.find((d) => d.id === div.id);
+                    const st = dd?.stages.find((y) => y.id === s.id);
+                    if (!dd || !st || st.type !== "bracket") return;
+                    const poules = dd.stages
+                      .filter((y): y is Extract<typeof y, { type: "poules" }> => y.type === "poules")
+                      .flatMap((y) => y.poules);
+                    const slots = seedSlots(st.size, poules);
+                    st.rounds[0]?.matches.forEach((mm, i) => {
+                      mm.a = slots[i * 2];
+                      mm.b = slots[i * 2 + 1];
+                    });
+                  })
+                }
+              >
+                ↺ Herstel standaardindeling
+              </button>
+            </div>
+          )}
+          {gated && s.type === "bracket" && seedingIssues(div, s).length > 0 && (
+            <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+              ⚠️ Controleer de indeling: {seedingIssues(div, s).join(" · ")}. Starten kan gewoon,
+              maar dubbele plaatsingen zetten hetzelfde team twee keer in de bracket.
+            </div>
+          )}
+
           {s.type === "bracket" &&
             s.rounds.map((r, ri) => (
-              <div key={ri} className={`card mb-4 p-4 ${gated ? "opacity-60" : ""}`}>
+              <div key={ri} className={`card mb-4 p-4 ${gated && ri > 0 ? "opacity-60" : ""}`}>
                 <div className="mb-1 font-semibold">{r.name}</div>
-                {r.matches.map((m) => <MatchRow key={m.id} m={m} ko disabled={gated} />)}
+                {r.matches.map((m) => (
+                  <MatchRow key={m.id} m={m} ko disabled={gated} editableSlots={gated && ri === 0} />
+                ))}
               </div>
             ))}
 

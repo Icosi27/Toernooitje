@@ -85,8 +85,9 @@ export function buildBracket(size: number, poules: Poule[], thirdPlace = true): 
 /**
  * Kruislingse seeding uit poules: 1e poule A tegen 2e poule B enz.
  * Werkt voor de gangbare gevallen (bijv. 4 poules -> KO met 8: A1-B2, B1-A2, C1-D2, D1-C2).
+ * Ook los bruikbaar om een handmatig aangepaste eerste ronde te herstellen.
  */
-function seedSlots(size: number, poules: Poule[]): Slot[] {
+export function seedSlots(size: number, poules: Poule[]): Slot[] {
   const slots: Slot[] = [];
   if (poules.length === 0) {
     for (let i = 0; i < size; i++) slots.push({ kind: "tbd" });

@@ -2,7 +2,15 @@ import { describe, expect, it } from "vitest";
 import type { Division } from "../types";
 import { defaultScoring } from "../types";
 import { buildFormat, seedKnockoutWithTeams } from "./formats";
-import { bracketReadiness, gatedMatchIds, stageProgress, startBracketStage } from "./phases";
+import {
+  bracketReadiness,
+  gatedMatchIds,
+  pouleRankOptions,
+  seedingIssues,
+  stageProgress,
+  startBracketStage,
+} from "./phases";
+import { pouleStandings } from "./standings";
 import { uid } from "./id";
 
 function wkDivision(teams = 8): Division {
@@ -98,6 +106,47 @@ describe("startBracketStage", () => {
     playPoules(d);
     expect(startBracketStage(d, d.stages[1].id, defaultScoring())).toBe(true);
     expect(startBracketStage(d, d.stages[1].id, defaultScoring())).toBe(false);
+  });
+});
+
+describe("pouleRankOptions", () => {
+  it("biedt elke plek van elke poule aan", () => {
+    const d = wkDivision(); // 2 poules van 4
+    const opts = pouleRankOptions(d);
+    expect(opts.length).toBe(8);
+    expect(opts.filter((o) => o.rank === 3).length).toBe(2);
+  });
+});
+
+describe("handmatige KO-koppelingen", () => {
+  it("een aangepaste koppeling (Nr. 1 tegen Nr. 3) stroomt correct door bij de start", () => {
+    const d = wkDivision();
+    const ko = d.stages[1];
+    if (ko.type !== "bracket") throw new Error();
+    const poules = d.stages[0].type === "poules" ? d.stages[0].poules : [];
+    // organisator zet halve finale 1 om naar Nr. 1 Poule A - Nr. 3 Poule B
+    ko.rounds[0].matches[0].a = { kind: "pouleRank", pouleId: poules[0].id, rank: 1 };
+    ko.rounds[0].matches[0].b = { kind: "pouleRank", pouleId: poules[1].id, rank: 3 };
+    playPoules(d);
+    expect(startBracketStage(d, ko.id, defaultScoring())).toBe(true);
+    const expectA = pouleStandings(poules[0], defaultScoring())[0].teamId;
+    const expectB = pouleStandings(poules[1], defaultScoring())[2].teamId;
+    expect((ko.rounds[0].matches[0].a as any).teamId).toBe(expectA);
+    expect((ko.rounds[0].matches[0].b as any).teamId).toBe(expectB);
+  });
+
+  it("seedingIssues waarschuwt bij dubbele plaatsingen en N.t.b.-plekken", () => {
+    const d = wkDivision();
+    const ko = d.stages[1];
+    if (ko.type !== "bracket") throw new Error();
+    expect(seedingIssues(d, ko)).toEqual([]); // standaard-seeding is schoon
+    const poules = d.stages[0].type === "poules" ? d.stages[0].poules : [];
+    ko.rounds[0].matches[0].a = { kind: "pouleRank", pouleId: poules[0].id, rank: 1 };
+    ko.rounds[0].matches[1].a = { kind: "pouleRank", pouleId: poules[0].id, rank: 1 };
+    ko.rounds[0].matches[1].b = { kind: "tbd" };
+    const issues = seedingIssues(d, ko);
+    expect(issues.some((i) => i.includes("2×"))).toBe(true);
+    expect(issues.some((i) => i.includes("N.t.b."))).toBe(true);
   });
 });
 
