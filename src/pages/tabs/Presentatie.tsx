@@ -5,7 +5,7 @@ import { useApp } from "../../store";
 import { Section, Toggle } from "../../components/ui";
 import { DONATE_URL } from "../../components/monetization";
 import { appUrl, copyText, encodeShare } from "../../logic/share";
-import { getClient, getCloudConfig, publishTournament, setCloudConfig } from "../../logic/cloud";
+import { DEFAULT_SUPABASE_URL, getCloudConfig, publishTournament, setCloudConfig } from "../../logic/cloud";
 import { fileToDataUrl } from "../../logic/files";
 import { uid } from "../../logic/id";
 
@@ -25,7 +25,7 @@ function CloudSharing({
 }) {
   const update = useApp((s) => s.updateTournament);
   const [config, setConfig] = useState(getCloudConfig());
-  const [url, setUrl] = useState(config?.url ?? "");
+  const [url, setUrl] = useState(config?.url ?? DEFAULT_SUPABASE_URL);
   const [anon, setAnon] = useState(config?.anonKey ?? "");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);

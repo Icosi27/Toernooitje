@@ -18,6 +18,9 @@ export interface CloudConfig {
 
 const CONFIG_KEY = "toernooitje-supabase";
 
+/** Standaard Supabase-project van Toernooitje; alleen de anon key nog plakken. */
+export const DEFAULT_SUPABASE_URL = "https://rwiztgedifbttwdbevpw.supabase.co";
+
 export function getCloudConfig(): CloudConfig | null {
   try {
     const raw = localStorage.getItem(CONFIG_KEY);
