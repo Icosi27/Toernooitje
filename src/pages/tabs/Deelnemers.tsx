@@ -4,7 +4,7 @@ import type { Tournament } from "../../types";
 import { useApp } from "../../store";
 import { EmptyState, Modal, ModalActions, Section, Toggle, useDivIdx } from "../../components/ui";
 import { appUrl, copyText } from "../../logic/share";
-import { decideRegistration, liveQuery } from "../../logic/cloud";
+import { decideRegistration, getClient, liveQuery, registerRefToken } from "../../logic/cloud";
 import { removeTeamEverywhere, teamInStages, withdrawTeam } from "../../logic/withdraw";
 import { fileToDataUrl } from "../../logic/files";
 import { KitIcon, TeamBadge } from "../../components/TeamBadge";
@@ -35,6 +35,31 @@ export default function Deelnemers() {
       setCopied(key);
       setTimeout(() => setCopied(null), 2000);
     }
+  };
+
+  /**
+   * Unieke scheidslink per scheidsrechter(-team), klaar voor WhatsApp of
+   * e-mail. Online krijgt de link een eigen token dat alléén uitslagen van de
+   * eigen wedstrijden mag schrijven; alleen als de server die tokens (nog)
+   * niet kent, valt hij terug op de oude link met de toernooisleutel.
+   */
+  const copyRefLink = async (copyKey: string, refId: string) => {
+    let qs = "";
+    if (t.cloud?.online) {
+      const token = t.cloud.refTokens?.[refId] ?? uid() + uid();
+      try {
+        const sb = getClient();
+        if (!sb) throw new Error("geen verbinding");
+        await registerRefToken(sb, t.id, t.cloud.writeKey, refId, token);
+        u((x) => {
+          if (x.cloud) (x.cloud.refTokens ??= {})[refId] = token;
+        });
+        qs = `${liveQuery(t, false)}&rt=${encodeURIComponent(token)}`;
+      } catch {
+        qs = liveQuery(t, true);
+      }
+    }
+    copy(copyKey, appUrl(`/scheids/${t.id}/${refId}${qs}`));
   };
 
   const div = t.divisions[Math.min(divIdx, t.divisions.length - 1)];
@@ -247,9 +272,7 @@ export default function Deelnemers() {
                         <button
                           className="btn-ghost text-xs"
                           title="Scheidslink: hier vult dit team de uitslagen in van de wedstrijden die het fluit"
-                          onClick={() =>
-                            copy(`ref-${team.id}`, appUrl(`/scheids/${t.id}/${team.id}${liveQuery(t, true)}`))
-                          }
+                          onClick={() => copyRefLink(`ref-${team.id}`, team.id)}
                         >
                           {copied === `ref-${team.id}` ? "✓ gekopieerd" : "🔗 scheidslink"}
                         </button>
@@ -446,7 +469,7 @@ export default function Deelnemers() {
                     <button
                       className="btn-ghost text-xs"
                       title="Inloglink: pagina waar deze scheidsrechter zijn uitslagen invult"
-                      onClick={() => copy(r.id, appUrl(`/scheids/${t.id}/${r.id}${liveQuery(t, true)}`))}
+                      onClick={() => copyRefLink(r.id, r.id)}
                     >
                       {copied === r.id ? "✓ gekopieerd" : "🔗 inloglink"}
                     </button>

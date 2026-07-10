@@ -125,6 +125,53 @@ export async function submitScore(
 }
 
 /**
+ * Score schrijven met een scheidsrechter-token i.p.v. de writeKey: mag alleen
+ * uitslagen zetten, en alleen van wedstrijden van deze scheidsrechter.
+ */
+export async function submitScoreRef(
+  sb: SupabaseClient,
+  tid: string,
+  refId: string,
+  token: string,
+  matchId: string,
+  a: number | null,
+  b: number | null,
+  pa: number | null = null,
+  pb: number | null = null,
+  live = false
+): Promise<void> {
+  const { error } = await sb.rpc("submit_score_ref", {
+    p_tid: tid,
+    p_ref: refId,
+    p_token: token,
+    p_match: matchId,
+    p_a: a,
+    p_b: b,
+    p_pa: pa,
+    p_pb: pb,
+    p_live: live,
+  });
+  if (error) throw new Error(error.message);
+}
+
+/** Organisator registreert (of rouleert) het token van één scheidsrechter. */
+export async function registerRefToken(
+  sb: SupabaseClient,
+  tid: string,
+  writeKey: string,
+  refId: string,
+  token: string
+): Promise<void> {
+  const { error } = await sb.rpc("upsert_referee_token", {
+    p_tid: tid,
+    p_key: writeKey,
+    p_ref: refId,
+    p_token: token,
+  });
+  if (error) throw new Error(error.message);
+}
+
+/**
  * Stuur de actuele score van een wedstrijd uit de lokale opslag naar de
  * scores-tabel. Aanroepen ná elke score-wijziging door de organisator, zodat
  * zijn correcties ook winnen van eerdere scheidsrechter-invoer.

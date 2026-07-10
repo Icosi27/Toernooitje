@@ -241,8 +241,13 @@ export interface Tournament {
   breakBetween: number; // minuten rust tussen wedstrijden op een veld
   startTime: string; // "HH:MM"
   presentation: Presentation;
-  /** online synchronisatie (Supabase); writeKey blijft op het apparaat van de organisator */
-  cloud?: { online: boolean; writeKey: string };
+  /**
+   * Online synchronisatie (Supabase); writeKey blijft op het apparaat van de
+   * organisator. refTokens: per scheidsrechter(-team) een eigen token dat
+   * alléén uitslagen mag schrijven — dat gaat in de scheidslink i.p.v. de
+   * writeKey. Het hele cloud-object wordt vóór publicatie gestript.
+   */
+  cloud?: { online: boolean; writeKey: string; refTokens?: Record<ID, string> };
   /** welke administratievelden per team worden bijgehouden */
   teamFields?: { present: boolean; paid: boolean; email: boolean };
   /** teams fluiten elkaars wedstrijden i.p.v. vaste scheidsrechters */

@@ -4,7 +4,7 @@ import { useApp, useTournament } from "../store";
 import type { Match, Tournament } from "../types";
 import { allMatches, slotLabel, winnerOf } from "../logic/resolve";
 import { isPlayed } from "../logic/standings";
-import { clientFromParams, pushScore, submitScore, useCloudTournament } from "../logic/cloud";
+import { clientFromParams, pushScore, submitScore, submitScoreRef, useCloudTournament } from "../logic/cloud";
 import { addMinutes } from "../logic/schedule";
 import { gatedMatchIds } from "../logic/phases";
 import { DonateButton } from "../components/monetization";
@@ -51,6 +51,8 @@ type PendingScore = { a?: number; b?: number; live?: boolean };
 function CloudPortal({ id, refId }: { id?: string; refId?: string }) {
   const [params] = useSearchParams();
   const writeKey = params.get("k");
+  // scheidsrechter-token: mag alleen uitslagen van eigen wedstrijden schrijven
+  const refToken = params.get("rt");
   const sbUrl = params.get("s");
   const sbKey = params.get("a");
   const { t, loading, error, refresh } = useCloudTournament(id, sbUrl, sbKey);
@@ -79,11 +81,14 @@ function CloudPortal({ id, refId }: { id?: string; refId?: string }) {
   const doSubmit = (matchId: string, p: PendingScore) => {
     setStatus((s) => ({ ...s, [matchId]: "saving" }));
     const sb = clientFromParams(sbUrl, sbKey);
-    if (!sb || !id || !writeKey) {
+    if (!sb || !id || (!writeKey && !(refToken && refId))) {
       setStatus((s) => ({ ...s, [matchId]: "error" }));
       return;
     }
-    submitScore(sb, id, writeKey, matchId, p.a ?? null, p.b ?? null, null, null, p.live ?? false)
+    const submit = writeKey
+      ? submitScore(sb, id, writeKey, matchId, p.a ?? null, p.b ?? null, null, null, p.live ?? false)
+      : submitScoreRef(sb, id, refId!, refToken!, matchId, p.a ?? null, p.b ?? null, null, null, p.live ?? false);
+    submit
       .then(() => {
         setStatus((s) => ({ ...s, [matchId]: "saved" }));
         refresh();
@@ -98,7 +103,7 @@ function CloudPortal({ id, refId }: { id?: string; refId?: string }) {
   const pendingRef = useRef(pending);
   pendingRef.current = pending;
   useEffect(() => {
-    if (!t || !writeKey) return;
+    if (!t || (!writeKey && !(refToken && refId))) return;
     const retryAll = () => {
       for (const [mid, p] of Object.entries(pendingRef.current)) {
         const st = statusRef.current[mid];
@@ -121,7 +126,7 @@ function CloudPortal({ id, refId }: { id?: string; refId?: string }) {
       window.removeEventListener("online", retryAll);
       clearInterval(iv);
     };
-  }, [t?.id, writeKey]);
+  }, [t?.id, writeKey, refToken]);
 
   // Zodra na een geslaagde opslag verse serverdata binnenkomt, is de overlay
   // niet meer nodig. Opruimen is belangrijk: anders blijft een oude waarde de
@@ -146,7 +151,7 @@ function CloudPortal({ id, refId }: { id?: string; refId?: string }) {
         {error ?? "Toernooi niet gevonden."} <Link to="/" className="underline">Naar home</Link>
       </div>
     );
-  if (!writeKey)
+  if (!writeKey && !(refToken && refId))
     return (
       <div className="p-10 text-center text-slate-600">
         Deze invoerlink is onvolledig (schrijfsleutel ontbreekt). Vraag de organisator om de link
