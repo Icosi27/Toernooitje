@@ -292,11 +292,16 @@ function PortalView({
           <DonateButton small />
         </div>
         {rows.length > 0 && (
-          <div className="mx-auto mt-2 h-1.5 max-w-2xl overflow-hidden rounded-full bg-white/20">
-            <div
-              className="h-full bg-white/90 transition-all"
-              style={{ width: `${(done.length / rows.length) * 100}%` }}
-            />
+          <div className="mx-auto mt-2 flex max-w-2xl items-center gap-2">
+            <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/20">
+              <div
+                className="h-full bg-white/90 transition-all"
+                style={{ width: `${(done.length / rows.length) * 100}%` }}
+              />
+            </div>
+            <span className="score shrink-0 text-xs font-bold text-white/90">
+              {done.length}/{rows.length}
+            </span>
           </div>
         )}
       </header>
@@ -327,11 +332,13 @@ function PortalView({
         )}
 
         {rows.length > 0 && open.length === 0 && (
-          <div className="stadium fade-in relative mb-4 overflow-hidden rounded-2xl p-6 text-center text-white">
-            <Confetti count={14} />
+          <div className="card-stadium fade-in mb-4 text-center">
+            <Confetti count={14} once />
             <div className="relative flex flex-col items-center gap-2">
               <Trophy size={90} />
-              <div className="text-xl font-black tracking-tight">Alles ingevuld — bedankt!</div>
+              <div className="text-xl font-black tracking-tight">
+                Alles ingevuld — bedankt{refName ? `, ${refName}` : ""}!
+              </div>
               <p className="text-sm text-white/75">
                 Alle {rows.length} uitslagen staan erin. Tijd voor een bakkie in de kantine. ☕
               </p>
@@ -482,7 +489,7 @@ function PortalRow({
               : undefined
         }
       >
-        <div className="mb-1 flex flex-wrap items-center gap-3 text-xs text-slate-400">
+        <div className="mb-1 flex flex-wrap items-center gap-3 text-xs text-slate-500">
           {live ? (
             <span className="flex items-center gap-1.5 font-bold uppercase text-red-500">
               <span className="live-dot inline-block h-2 w-2 rounded-full bg-red-500" /> Live
@@ -529,7 +536,7 @@ function PortalRow({
               ).map((x, i) => (
                 <div key={i} className="flex flex-1 flex-col items-center gap-1.5">
                   <span className="max-w-full truncate text-sm font-medium">{x.name}</span>
-                  <span className="score accent-score text-4xl font-black">
+                  <span className="score score-klok stadium-night rounded-xl px-4 py-1 text-white">
                     {x.score}
                   </span>
                   <div className="flex items-center gap-2">

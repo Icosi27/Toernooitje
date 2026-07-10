@@ -27,7 +27,7 @@ export default function Home() {
 
   return (
     <div className="min-h-screen">
-      <header className="accent-header flex items-center justify-between px-6 py-4 text-white">
+      <header className="stadium flex items-center justify-between px-6 py-4 text-white">
         <Link to="/" className="flex items-center gap-2 text-xl font-bold">🏆 Toernooitje</Link>
         <div className="flex items-center gap-4">
           <DonateButton small />

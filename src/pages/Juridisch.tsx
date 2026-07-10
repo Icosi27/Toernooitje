@@ -4,7 +4,7 @@ import { Link } from "react-router-dom";
 function LegalPage({ title, updated, children }: { title: string; updated: string; children: React.ReactNode }) {
   return (
     <div className="min-h-screen bg-white">
-      <nav className="accent-header px-4 py-3 text-white">
+      <nav className="stadium px-4 py-3 text-white">
         <div className="mx-auto flex max-w-3xl items-center justify-between">
           <Link to="/" className="flex items-center gap-2 font-black">🏆 Toernooitje</Link>
           <Link to="/login" className="rounded-full bg-white px-4 py-1.5 text-sm font-bold" style={{ color: "var(--accent)" }}>

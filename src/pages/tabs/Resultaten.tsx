@@ -332,7 +332,7 @@ export default function Resultaten() {
 
           {gated &&
             (readiness!.ready ? (
-              <div className="stadium fade-in mb-4 flex flex-wrap items-center justify-between gap-4 rounded-xl p-5 text-white">
+              <div className="card-stadium fade-in mb-4 flex flex-wrap items-center justify-between gap-4 p-5">
                 <div>
                   <div className="font-bold">Groepsfase compleet ✓</div>
                   <p className="mt-1 text-sm text-white/80">

@@ -4,9 +4,11 @@ import { useEffect } from "react";
 
 const CONFETTI_COLORS = ["#fbbf24", "#34d399", "#60a5fa", "#f472b6", "#f8fafc", "#fb923c"];
 
-export function Confetti({ count = 26 }: { count?: number }) {
+export function Confetti({ count = 26, once = false }: { count?: number; once?: boolean }) {
+  // once: elk snippertje valt één keer en blijft dan weg — voor schermen die
+  // uren open blijven staan (podium, kampioen, portaal-slot): batterij > feest
   return (
-    <div className="confetti" aria-hidden>
+    <div className={once ? "confetti confetti-once" : "confetti"} aria-hidden>
       {Array.from({ length: count }, (_, i) => (
         <i
           key={i}

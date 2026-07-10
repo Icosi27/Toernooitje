@@ -142,7 +142,7 @@ export default function Landing() {
         <div className="relative mx-auto grid max-w-6xl items-center gap-12 px-4 pb-24 pt-20 lg:grid-cols-2">
           <div>
             <p className="mb-4 inline-flex items-center gap-2 rounded-full border border-amber-400/40 bg-amber-400/10 px-3 py-1 text-xs font-bold uppercase tracking-widest text-amber-300">
-              <span className="live-dot h-2 w-2 rounded-full bg-amber-400" />
+              <span className="live-dot h-2 w-2 rounded-full bg-red-500" />
               100% gratis toernooisoftware
             </p>
             <h1 className="text-5xl font-black leading-[1.05] tracking-tight sm:text-6xl">

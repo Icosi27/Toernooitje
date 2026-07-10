@@ -534,7 +534,7 @@ export default function Schema() {
 
       {/* undo-snackbar */}
       {undo && (
-        <div className="fixed bottom-6 left-1/2 z-50 flex -translate-x-1/2 items-center gap-3 rounded-xl bg-slate-900 px-4 py-2.5 text-sm text-white shadow-lg">
+        <div className="fixed bottom-6 left-1/2 z-50 flex -translate-x-1/2 items-center gap-3 rounded-full bg-slate-900 px-5 py-2.5 text-sm text-white shadow-lg">
           <span>{undo.message}</span>
           <button className="font-semibold underline" style={{ color: "var(--accent-soft)" }} onClick={doUndo}>
             Ongedaan maken
