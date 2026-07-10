@@ -5,6 +5,7 @@ import { useApp } from "../../store";
 import { EmptyState, Modal, ModalActions, Section, Toggle, useDivIdx } from "../../components/ui";
 import { appUrl, copyText } from "../../logic/share";
 import { decideRegistration, liveQuery } from "../../logic/cloud";
+import { removeTeamEverywhere, teamInStages, withdrawTeam } from "../../logic/withdraw";
 import { fileToDataUrl } from "../../logic/files";
 import { KitIcon, TeamBadge } from "../../components/TeamBadge";
 import { uid } from "../../logic/id";
@@ -154,8 +155,16 @@ export default function Deelnemers() {
                     <div key={team.id} className="flex items-center gap-3 px-4 py-2">
                       <span className="w-6 text-xs text-slate-400">{i + 1}</span>
                       <TeamBadge team={team} size={22} />
+                      {team.withdrawn && (
+                        <span
+                          className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold uppercase text-slate-500"
+                          title="Openstaande wedstrijden zijn reglementair naar de tegenstander gegaan"
+                        >
+                          teruggetrokken
+                        </span>
+                      )}
                       <input
-                        className="input border-0 font-medium"
+                        className={`input border-0 font-medium ${team.withdrawn ? "text-slate-400 line-through" : ""}`}
                         value={team.name}
                         onChange={(e) =>
                           u((x) => {
@@ -245,13 +254,41 @@ export default function Deelnemers() {
                           {copied === `ref-${team.id}` ? "✓ gekopieerd" : "🔗 scheidslink"}
                         </button>
                       )}
+                      {!team.withdrawn && teamInStages(div, team.id) && (
+                        <button
+                          className="btn-ghost text-xs text-amber-600"
+                          title="Team valt uit: openstaande wedstrijden gaan reglementair (3–0) naar de tegenstander; gespeelde uitslagen blijven staan"
+                          onClick={() => {
+                            if (
+                              !confirm(
+                                `"${team.name}" trekt zich terug?\n\nOpenstaande wedstrijden gaan reglementair (3–0) naar de tegenstander. Gespeelde uitslagen blijven staan.`
+                              )
+                            )
+                              return;
+                            u((x) => {
+                              const d = x.divisions.find((d) => d.id === div.id)!;
+                              withdrawTeam(d, team.id);
+                            });
+                          }}
+                        >
+                          🚪 valt uit
+                        </button>
+                      )}
                       <button
                         className="btn-ghost text-red-500"
                         onClick={() => {
-                          if (!confirm(`Team "${team.name}" verwijderen?`)) return;
+                          const inStages = teamInStages(div, team.id);
+                          if (
+                            !confirm(
+                              inStages
+                                ? `Team "${team.name}" verwijderen?\n\nHet team verdwijnt ook uit de poule-indeling en openstaande wedstrijden worden geschrapt. Valt het team alleen uit? Gebruik dan "valt uit".`
+                                : `Team "${team.name}" verwijderen?`
+                            )
+                          )
+                            return;
                           u((x) => {
                             const d = x.divisions.find((d) => d.id === div.id)!;
-                            d.teams = d.teams.filter((tm) => tm.id !== team.id);
+                            removeTeamEverywhere(d, team.id);
                           });
                         }}
                       >

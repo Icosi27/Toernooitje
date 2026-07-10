@@ -89,7 +89,8 @@ function Form({ t, isLocal }: { t: Tournament; isLocal: boolean }) {
           (x.registrations ??= []).push(reg);
         });
       } else {
-        const sb = clientFromParams(null, null);
+        // client op basis van de servergegevens uit de inschrijflink zelf
+        const sb = clientFromParams(params.get("s"), params.get("a"));
         if (!sb) throw new Error("Geen verbinding met de server.");
         await submitRegistration(sb, t.id, reg);
       }

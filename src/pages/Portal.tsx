@@ -44,13 +44,82 @@ function LocalPortal({ t, refId }: { t: Tournament; refId?: string }) {
   return <PortalView t={t} refId={refId} onSave={save} status={{}} />;
 }
 
+type PendingScore = { a?: number; b?: number; live?: boolean };
+
 function CloudPortal({ id, refId }: { id?: string; refId?: string }) {
   const [params] = useSearchParams();
   const writeKey = params.get("k");
-  const { t, loading, error, refresh } = useCloudTournament(id, params.get("s"), params.get("a"));
-  // opgeslagen waarden over de serverdata heen leggen tot de refresh ze bevestigt
-  const [pending, setPending] = useState<Record<string, { a?: number; b?: number; live?: boolean }>>({});
+  const sbUrl = params.get("s");
+  const sbKey = params.get("a");
+  const { t, loading, error, refresh } = useCloudTournament(id, sbUrl, sbKey);
+
+  // Niet-bevestigde invoer overleeft een refresh of weggeswipete tab: de
+  // wachtrij staat in een eigen (kleine) localStorage-key, los van de app-blob.
+  const queueKey = `toernooitje-portaal-wachtrij-${id}`;
+  const [pending, setPending] = useState<Record<string, PendingScore>>(() => {
+    try {
+      return JSON.parse(localStorage.getItem(queueKey) ?? "{}") as Record<string, PendingScore>;
+    } catch {
+      return {};
+    }
+  });
   const [status, setStatus] = useState<Record<string, SaveState>>({});
+
+  useEffect(() => {
+    try {
+      if (Object.keys(pending).length === 0) localStorage.removeItem(queueKey);
+      else localStorage.setItem(queueKey, JSON.stringify(pending));
+    } catch {
+      // opslag vol: dan werkt de wachtrij alleen binnen deze sessie
+    }
+  }, [pending, queueKey]);
+
+  const doSubmit = (matchId: string, p: PendingScore) => {
+    setStatus((s) => ({ ...s, [matchId]: "saving" }));
+    const sb = clientFromParams(sbUrl, sbKey);
+    if (!sb || !id || !writeKey) {
+      setStatus((s) => ({ ...s, [matchId]: "error" }));
+      return;
+    }
+    submitScore(sb, id, writeKey, matchId, p.a ?? null, p.b ?? null, null, null, p.live ?? false)
+      .then(() => {
+        setStatus((s) => ({ ...s, [matchId]: "saved" }));
+        refresh();
+      })
+      .catch(() => setStatus((s) => ({ ...s, [matchId]: "error" })));
+  };
+
+  // automatische retry: bij herstelde verbinding en elke 15s zolang er iets
+  // in de wachtrij staat (ook invoer uit een vorige sessie, zonder status)
+  const statusRef = useRef(status);
+  statusRef.current = status;
+  const pendingRef = useRef(pending);
+  pendingRef.current = pending;
+  useEffect(() => {
+    if (!t || !writeKey) return;
+    const retryAll = () => {
+      for (const [mid, p] of Object.entries(pendingRef.current)) {
+        const st = statusRef.current[mid];
+        if (st === "saving" || st === "saved") continue;
+        doSubmit(mid, p);
+      }
+    };
+    retryAll(); // invoer van vóór een refresh direct opnieuw proberen
+    window.addEventListener("online", retryAll);
+    const iv = setInterval(() => {
+      if (
+        Object.keys(pendingRef.current).some((mid) => {
+          const st = statusRef.current[mid];
+          return st !== "saving" && st !== "saved";
+        })
+      )
+        retryAll();
+    }, 15000);
+    return () => {
+      window.removeEventListener("online", retryAll);
+      clearInterval(iv);
+    };
+  }, [t?.id, writeKey]);
 
   // Zodra na een geslaagde opslag verse serverdata binnenkomt, is de overlay
   // niet meer nodig. Opruimen is belangrijk: anders blijft een oude waarde de
@@ -95,20 +164,14 @@ function CloudPortal({ id, refId }: { id?: string; refId?: string }) {
   }
 
   const save = (matchId: string, a: number | undefined, b: number | undefined, live: boolean) => {
-    setPending((prev) => ({ ...prev, [matchId]: { a, b, live } }));
-    setStatus((s) => ({ ...s, [matchId]: "saving" }));
-    const sb = clientFromParams(null, null);
-    if (!sb) {
-      setStatus((s) => ({ ...s, [matchId]: "error" }));
-      return;
-    }
-    submitScore(sb, t.id, writeKey, matchId, a ?? null, b ?? null, null, null, live)
-      .then(() => {
-        setStatus((s) => ({ ...s, [matchId]: "saved" }));
-        refresh();
-      })
-      .catch(() => setStatus((s) => ({ ...s, [matchId]: "error" })));
+    const p: PendingScore = { a, b, live };
+    setPending((prev) => ({ ...prev, [matchId]: p }));
+    doSubmit(matchId, p);
   };
+
+  const queued = Object.keys(pending).filter(
+    (mid) => status[mid] !== "saved" && status[mid] !== "saving"
+  ).length;
 
   return (
     <PortalView
@@ -116,6 +179,7 @@ function CloudPortal({ id, refId }: { id?: string; refId?: string }) {
       refId={refId}
       onSave={save}
       status={status}
+      queued={queued}
       onRetry={(matchId) => {
         const p = pending[matchId];
         if (p) save(matchId, p.a, p.b, p.live ?? false);
@@ -131,6 +195,7 @@ function PortalView({
   onSave,
   status,
   onRetry,
+  queued = 0,
   cloud = false,
 }: {
   t: Tournament;
@@ -138,6 +203,8 @@ function PortalView({
   onSave: (matchId: string, a: number | undefined, b: number | undefined, live: boolean) => void;
   status: Record<string, SaveState>;
   onRetry?: (matchId: string) => void;
+  /** aantal uitslagen dat nog op verbinding wacht (offline-wachtrij) */
+  queued?: number;
   cloud?: boolean;
 }) {
   const liveMode = !!t.liveScoring;
@@ -189,6 +256,13 @@ function PortalView({
       </header>
 
       <main className="mx-auto max-w-2xl px-4 py-6">
+        {queued > 0 && (
+          <div className="mb-4 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+            📶 {queued} uitslag{queued === 1 ? "" : "en"} wacht{queued === 1 ? "" : "en"} op
+            verbinding — je invoer is veilig en wordt automatisch verstuurd zodra er weer bereik
+            is.
+          </div>
+        )}
         <p className="mb-4 text-sm text-slate-500">
           {done.length} van {rows.length} uitslagen ingevuld
         </p>

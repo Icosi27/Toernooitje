@@ -491,36 +491,49 @@ function ChampionBanner({ t, d }: { t: Tournament; d: Division }) {
   return null;
 }
 
-/** Het veld van de eerstvolgende wedstrijd van mijn team (voor de plattegrond-📍). */
+/** Het veld van de eerstvolgende verplichting van mijn team (voor de plattegrond-📍). */
 function nextFieldFor(t: Tournament, teamId: string): string | undefined {
   if (!teamId) return undefined;
   const next = teamMatches(t, teamId).find(({ match: m }) => !isPlayed(m));
   return next?.match.fieldId;
 }
 
-/** Alle wedstrijden van één team (ook toekomstige zodra placeholders bekend zijn). */
-function teamMatches(t: Tournament, teamId: string): { match: Match; division: Division }[] {
-  return scheduledMatches(t).filter(({ match: m, division: d }) => {
-    const a = resolveSlot(m.a, d, t.scoring);
-    const b = resolveSlot(m.b, d, t.scoring);
-    return a?.id === teamId || b?.id === teamId;
+/**
+ * Alle verplichtingen van één team: eigen wedstrijden én fluitbeurten
+ * (refereeTeamId). Een gemiste fluitbeurt legt het toernooi stil, dus die
+ * horen net zo prominent in het dagprogramma als de wedstrijden zelf.
+ */
+function teamMatches(
+  t: Tournament,
+  teamId: string
+): { match: Match; division: Division; ref?: boolean }[] {
+  return scheduledMatches(t).flatMap(({ match: m, division: d }) => {
+    const plays =
+      resolveSlot(m.a, d, t.scoring)?.id === teamId ||
+      resolveSlot(m.b, d, t.scoring)?.id === teamId;
+    const refs = m.refereeTeamId === teamId;
+    if (!plays && !refs) return [];
+    return [{ match: m, division: d, ref: refs && !plays }];
   });
 }
 
-/** Grote kaart: de eerstvolgende wedstrijd van mijn team. */
+/** Grote kaart: de eerstvolgende wedstrijd van mijn team, plus het hele dagprogramma. */
 function NextMatchCard({ t, teamId }: { t: Tournament; teamId: string }) {
   const mine = teamMatches(t, teamId);
-  const next = mine.find(({ match: m }) => !isPlayed(m));
-  const played = mine.filter(({ match: m }) => isPlayed(m));
+  const next = mine.find(({ match: m, ref }) => !ref && !isPlayed(m));
   const fieldName = (id?: string) => t.fields.find((f) => f.id === id)?.name;
   const team = t.divisions.flatMap((d) => d.teams).find((tm) => tm.id === teamId);
+  const last = [...mine].reverse().find(({ match: m }) => m.start);
 
-  if (!next && mine.length === 0)
+  if (mine.length === 0)
     return (
       <div className="card p-4 text-sm text-slate-500">
         Nog geen wedstrijden bekend voor <b>{team?.name}</b>.
       </div>
     );
+
+  const mySide = (m: Match, d: Division): "a" | "b" =>
+    resolveSlot(m.a, d, t.scoring)?.id === teamId ? "a" : "b";
 
   return (
     <div className="card fade-in overflow-hidden">
@@ -556,17 +569,54 @@ function NextMatchCard({ t, teamId }: { t: Tournament; teamId: string }) {
           </div>
         </div>
       )}
-      {played.length > 0 && (
-        <div className="border-t border-slate-100 px-4 py-2 text-xs text-slate-500">
-          Gespeeld:{" "}
-          {played
-            .map(
-              ({ match: m, division: d }) =>
-                `${slotLabel(m.a, d, t.scoring)} ${m.scoreA}–${m.scoreB} ${slotLabel(m.b, d, t.scoring)}`
-            )
-            .join(" · ")}
+
+      <div className="border-t border-slate-100 px-4 py-2.5">
+        <div className="mb-1.5 flex items-baseline justify-between gap-2">
+          <span className="text-xs font-bold uppercase tracking-wide text-slate-400">Jullie dag</span>
+          {last?.match.start && (
+            <span className="text-xs text-slate-400">
+              klaar rond {addMinutes(last.match.start, t.matchDuration)}
+            </span>
+          )}
         </div>
-      )}
+        <div className="space-y-1 text-sm">
+          {mine.map(({ match: m, division: d, ref }) => {
+            const isNext = m.id === next?.match.id;
+            const w = winnerOf(m);
+            const result = !ref && isPlayed(m) ? (w === null ? "d" : w === mySide(m, d) ? "w" : "l") : null;
+            return (
+              <div key={m.id} className={`flex items-center gap-2 ${result ? "text-slate-400" : ""}`}>
+                <span className="score w-11 shrink-0 text-xs text-slate-400">{m.start ?? "—"}</span>
+                {t.fields.length > 0 && (
+                  <span className="w-14 shrink-0 truncate text-xs text-slate-400">
+                    {fieldName(m.fieldId) ?? ""}
+                  </span>
+                )}
+                {ref && (
+                  <span className="shrink-0 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold uppercase text-amber-700">
+                    🟨 fluiten
+                  </span>
+                )}
+                <span className={`min-w-0 flex-1 truncate ${isNext ? "font-semibold" : ""}`}>
+                  {slotLabel(m.a, d, t.scoring)} — {slotLabel(m.b, d, t.scoring)}
+                </span>
+                {result && (
+                  <span
+                    className={`score shrink-0 text-xs font-bold ${
+                      result === "w" ? "text-green-600" : result === "l" ? "text-red-500" : "text-slate-500"
+                    }`}
+                  >
+                    {m.scoreA}–{m.scoreB}
+                  </span>
+                )}
+                {ref && isPlayed(m) && (
+                  <span className="score shrink-0 text-xs text-slate-400">{m.scoreA}–{m.scoreB}</span>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
     </div>
   );
 }
@@ -854,10 +904,14 @@ function SchemaView({
       resolveSlot(m.a, d, t.scoring)?.id === myTeam || resolveSlot(m.b, d, t.scoring)?.id === myTeam
     );
   };
+  const refsMyTeam = (m: Match) => !!myTeam && m.refereeTeamId === myTeam;
 
   const shown =
     onlyMine && myTeam
-      ? merged.filter((row) => row.kind === "event" || involvesMyTeam(row.match, row.division))
+      ? merged.filter(
+          (row) =>
+            row.kind === "event" || involvesMyTeam(row.match, row.division) || refsMyTeam(row.match)
+        )
       : merged;
 
   return (
@@ -944,6 +998,11 @@ function SchemaView({
                     {slotLabel(m.b, d, t.scoring)}
                   </span>
                   {m.label && <span className="ml-2 text-xs text-slate-400">{m.label}</span>}
+                  {refsMyTeam(m) && !isPlayed(m) && (
+                    <span className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold uppercase text-amber-700">
+                      🟨 jullie fluiten
+                    </span>
+                  )}
                   {busy.has(m.id) && (
                     <span
                       className="ml-2 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase text-white"

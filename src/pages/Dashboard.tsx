@@ -14,6 +14,7 @@ import { allMatches } from "../logic/resolve";
 import { saveTournamentToAccount } from "../logic/account";
 import { useSession } from "../logic/auth";
 import { DonateButton } from "../components/monetization";
+import { NextStepBanner } from "../components/NextStepBanner";
 
 /**
  * Houdt een online gezet toernooi synchroon: elke lokale wijziging wordt
@@ -205,8 +206,32 @@ export default function Dashboard() {
         </div>
       )}
 
+      {/* mobiel: horizontale tabbalk — de organisator beheert op de toernooidag vanaf zijn telefoon */}
+      <nav className="sticky top-14 z-30 flex overflow-x-auto border-b border-slate-200 bg-white md:hidden">
+        {NAV.map((n) => (
+          <NavLink
+            key={n.to}
+            to={n.to}
+            end={n.end}
+            className={({ isActive }) =>
+              `flex min-w-16 shrink-0 flex-col items-center gap-0.5 px-3 py-2 text-[11px] ${
+                isActive ? "font-semibold" : "text-slate-500"
+              }`
+            }
+            style={({ isActive }) =>
+              isActive
+                ? { color: "var(--accent)", boxShadow: "inset 0 -2px 0 var(--accent)" }
+                : undefined
+            }
+          >
+            <span className="text-lg">{n.icon}</span>
+            {n.label}
+          </NavLink>
+        ))}
+      </nav>
+
       <div className="flex">
-        <nav className="sticky top-14 h-[calc(100vh-3.5rem)] w-24 shrink-0 border-r border-slate-200 bg-white py-4">
+        <nav className="sticky top-14 hidden h-[calc(100vh-3.5rem)] w-24 shrink-0 border-r border-slate-200 bg-white py-4 md:block">
           {NAV.map((n) => (
             <NavLink
               key={n.to}
@@ -224,7 +249,8 @@ export default function Dashboard() {
             </NavLink>
           ))}
         </nav>
-        <main className="min-w-0 flex-1 px-6 py-6">
+        <main className="min-w-0 flex-1 px-4 py-6 sm:px-6">
+          <NextStepBanner t={t} />
           <Outlet context={t} />
         </main>
       </div>

@@ -18,6 +18,8 @@ export interface Team {
   paid?: boolean;
   shirtColor?: string;
   shortsColor?: string;
+  /** teruggetrokken: openstaande wedstrijden zijn reglementair toegekend */
+  withdrawn?: boolean;
   players: Player[];
 }
 
