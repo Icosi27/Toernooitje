@@ -8,10 +8,14 @@ import { qualifyingRanks, resolveSlot, slotLabel, winnerOf } from "../logic/reso
 import { addMinutes, scheduledMatches } from "../logic/schedule";
 import { activeStage, stageMatches } from "../logic/phases";
 import { copyText, decodeShare } from "../logic/share";
+import { qualificationScenario } from "../logic/scenario";
+import { accentStyle } from "../logic/color";
 import { useCloudTournament } from "../logic/cloud";
 import { AdBlock, Boarding, DonateButton } from "../components/monetization";
 import { TeamBadge } from "../components/TeamBadge";
 import { Confetti, Trophy } from "../components/decor";
+import { PodiumCard } from "../components/Podium";
+import { ScheduleNotices, useScheduleChanges } from "../components/ScheduleNotices";
 import { VenueMapView } from "../components/VenueMap";
 
 type Page = "toernooi" | "standen" | "schema" | "plattegrond";
@@ -90,7 +94,9 @@ function FitToScreen({ children }: { children: React.ReactNode }) {
       const o = outer.current;
       const i = inner.current;
       if (!o || !i) return;
-      const next = Math.min(1.6, Math.max(0.55, o.clientHeight / Math.max(1, i.scrollHeight)));
+      // niet verder krimpen dan 0.75: op het kantinescherm is leesbaarheid
+      // belangrijker dan alles op één dia (standen zijn al opgeknipt in chunks)
+      const next = Math.min(1.6, Math.max(0.75, o.clientHeight / Math.max(1, i.scrollHeight)));
       setScale((cur) => (Math.abs(cur - next) > 0.02 ? next : cur));
     };
     measure();
@@ -135,6 +141,16 @@ function LiveInner({
   const [copied, setCopied] = useState(false);
   // veld dat vanuit het schema is aangetikt (pin op de plattegrond)
   const [pinnedField, setPinnedField] = useState<string | null>(null);
+
+  // verplaatste wedstrijden van mijn team expliciet melden (alleen live-kijkers)
+  const changes = useScheduleChanges(
+    live && myTeam ? t : undefined,
+    myTeam,
+    (m, d) =>
+      m.refereeTeamId === myTeam ||
+      resolveSlot(m.a, d, t!.scoring)?.id === myTeam ||
+      resolveSlot(m.b, d, t!.scoring)?.id === myTeam
+  );
 
   const goToPage = (p: Page) => {
     if (p !== "plattegrond") setPinnedField(null);
@@ -242,7 +258,7 @@ function LiveInner({
     <div
       className={slideshow ? "flex h-screen flex-col overflow-hidden" : "min-h-screen"}
       data-pres={slideshow ? "true" : undefined}
-      style={{ ["--accent" as string]: t.presentation.accentColor }}
+      style={accentStyle(t.presentation.accentColor)}
     >
       <header
         className={`relative shrink-0 overflow-hidden px-6 text-white ${slideshow ? "py-6" : "py-10"} ${t.presentation.background ? "" : "stadium"}`}
@@ -355,12 +371,14 @@ function LiveInner({
               </p>
             )}
 
+            {!slideshow && <ScheduleNotices notices={changes.notices} dismiss={changes.dismiss} />}
             {myTeam && !slideshow && <NextMatchCard t={t} teamId={myTeam} />}
 
             {page === "standen" ? (
               // de eerste stand eerst, dan pas reclame: het publiek komt voor de stand
               <>
                 {t.divisions.map((d) => <ChampionBanner key={`c-${d.id}`} t={t} d={d} />)}
+                {t.divisions.map((d) => <PodiumCard key={`p-${d.id}`} t={t} d={d} />)}
                 {t.divisions[0] && (
                   <Standen key={t.divisions[0].id} t={t} d={t.divisions[0]} myTeam={myTeam} />
                 )}
@@ -415,6 +433,7 @@ function LiveInner({
                     {slide?.page === "standen" && presDiv && (
                       <>
                         <ChampionBanner t={t} d={presDiv} />
+                        <PodiumCard t={t} d={presDiv} />
                         <Standen t={t} d={presDiv} myTeam={myTeam} onlyActive pouleChunk={slide.chunk} />
                       </>
                     )}
@@ -535,9 +554,12 @@ function NextMatchCard({ t, teamId }: { t: Tournament; teamId: string }) {
   const mySide = (m: Match, d: Division): "a" | "b" =>
     resolveSlot(m.a, d, t.scoring)?.id === teamId ? "a" : "b";
 
+  const myDivision = t.divisions.find((d) => d.teams.some((tm) => tm.id === teamId));
+  const scenario = myDivision ? qualificationScenario(myDivision, teamId, t.scoring) : null;
+
   return (
     <div className="card fade-in overflow-hidden">
-      <div className="px-4 py-1.5 text-xs font-bold uppercase tracking-wide text-white" style={{ background: "var(--accent)" }}>
+      <div className="px-4 py-1.5 text-xs font-bold uppercase tracking-wide" style={{ background: "var(--accent)", color: "var(--accent-text)" }}>
         {next ? (next.match.inProgress ? "🔴 Jullie spelen nu" : "Jullie volgende wedstrijd") : "Alle wedstrijden gespeeld"}
       </div>
       {next && (
@@ -548,7 +570,7 @@ function NextMatchCard({ t, teamId }: { t: Tournament; teamId: string }) {
               {next.match.scoreA ?? 0}–{next.match.scoreB ?? 0}
             </span>
           ) : (
-            <span className="score text-3xl font-black" style={{ color: "var(--accent)" }}>
+            <span className="score accent-score text-3xl font-black">
               {next.match.start ?? "—"}
               {next.match.start && (
                 <span className="ml-1 text-base font-bold text-slate-400">
@@ -567,6 +589,13 @@ function NextMatchCard({ t, teamId }: { t: Tournament; teamId: string }) {
               {t.divisions.length > 1 ? ` · ${next.division.name}` : ""}
             </div>
           </div>
+        </div>
+      )}
+
+      {scenario && (
+        <div className="border-t border-slate-100 px-4 py-2 text-sm">
+          <span className="mr-1.5">🎯</span>
+          {scenario}
         </div>
       )}
 
@@ -783,14 +812,14 @@ function Standen({
                                   {slotLabel(m.a, d, t.scoring)}
                                   {mineA && <span className="ml-1 text-xs" style={{ color: "var(--accent)" }}>⭐</span>}
                                 </span>
-                                <b className="score" style={{ color: "var(--accent)" }}>{m.scoreA ?? ""}</b>
+                                <b className="score accent-score">{m.scoreA ?? ""}</b>
                               </div>
                               <div className={`flex justify-between gap-2 border-t border-slate-100 pt-1 ${mineB ? "font-semibold" : ""}`}>
                                 <span className="truncate">
                                   {slotLabel(m.b, d, t.scoring)}
                                   {mineB && <span className="ml-1 text-xs" style={{ color: "var(--accent)" }}>⭐</span>}
                                 </span>
-                                <b className="score" style={{ color: "var(--accent)" }}>{m.scoreB ?? ""}</b>
+                                <b className="score accent-score">{m.scoreB ?? ""}</b>
                               </div>
                             </div>
                           );
@@ -1005,8 +1034,8 @@ function SchemaView({
                   )}
                   {busy.has(m.id) && (
                     <span
-                      className="ml-2 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase text-white"
-                      style={{ background: "var(--accent)" }}
+                      className="ml-2 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase"
+                      style={{ background: "var(--accent)", color: "var(--accent-text)" }}
                     >
                       ● bezig
                     </span>
@@ -1014,7 +1043,7 @@ function SchemaView({
                 </td>
                 <td className="score px-3 py-2 text-center font-bold">
                   {m.inProgress ? (
-                    <span className="flex items-center justify-center gap-1.5" style={{ color: "var(--accent)" }}>
+                    <span className="accent-score flex items-center justify-center gap-1.5">
                       <span className="live-dot inline-block h-1.5 w-1.5 rounded-full bg-red-500" />
                       {m.scoreA ?? 0} – {m.scoreB ?? 0}
                     </span>

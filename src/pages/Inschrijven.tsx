@@ -8,6 +8,7 @@ import { uid } from "../logic/id";
 import { fileToDataUrl } from "../logic/files";
 import { nlError } from "../logic/errors";
 import { appUrl, copyText } from "../logic/share";
+import { accentStyle } from "../logic/color";
 import { DonateButton } from "../components/monetization";
 import { KitIcon } from "../components/TeamBadge";
 import { Confetti, Trophy } from "../components/decor";
@@ -103,7 +104,7 @@ function Form({ t, isLocal }: { t: Tournament; isLocal: boolean }) {
   };
 
   return (
-    <div className="min-h-screen" style={{ ["--accent" as string]: t.presentation.accentColor }}>
+    <div className="min-h-screen" style={accentStyle(t.presentation.accentColor)}>
       <header className="stadium px-6 py-8 text-white">
         <div className="mx-auto flex max-w-lg items-center justify-between gap-4">
           <div>

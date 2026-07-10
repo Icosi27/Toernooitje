@@ -16,6 +16,7 @@ import {
 } from "../../logic/phases";
 import { seedSlots } from "../../logic/bracket";
 import { TeamBadge } from "../../components/TeamBadge";
+import { PodiumCard } from "../../components/Podium";
 
 export default function Resultaten() {
   const t = useOutletContext<Tournament>();
@@ -281,6 +282,10 @@ export default function Resultaten() {
         >
           🧾 Wedstrijdtafel-modus (op tijd)
         </Link>
+      </div>
+
+      <div className="mb-6 empty:hidden">
+        <PodiumCard t={t} d={div} />
       </div>
 
       {div.stages.map((s) => {

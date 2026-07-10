@@ -9,6 +9,8 @@ import { addMinutes } from "../logic/schedule";
 import { gatedMatchIds } from "../logic/phases";
 import { DonateButton } from "../components/monetization";
 import { Confetti, Trophy } from "../components/decor";
+import { ScheduleNotices, useScheduleChanges } from "../components/ScheduleNotices";
+import { accentStyle } from "../logic/color";
 
 type SaveState = "saving" | "saved" | "error";
 
@@ -209,6 +211,12 @@ function PortalView({
 }) {
   const liveMode = !!t.liveScoring;
   const [showDone, setShowDone] = useState(false);
+  // verplaatste wedstrijden van deze scheidsrechter expliciet melden
+  const changes = useScheduleChanges(
+    cloud && refId ? t : undefined,
+    refId ?? "",
+    (m) => m.refereeId === refId || m.refereeTeamId === refId
+  );
   // de link kan van een scheidsrechter zijn, of van een team dat fluit
   const referee = refId ? t.referees.find((r) => r.id === refId) : undefined;
   const refTeam = refId && !referee
@@ -233,7 +241,7 @@ function PortalView({
   const done = rows.filter(({ m }) => isPlayed(m));
 
   return (
-    <div className="min-h-screen" style={{ ["--accent" as string]: t.presentation.accentColor }}>
+    <div className="min-h-screen" style={accentStyle(t.presentation.accentColor)}>
       <header className="stadium sticky top-0 z-30 px-4 py-4 text-white">
         <div className="mx-auto flex max-w-2xl items-center justify-between">
           <div>
@@ -256,6 +264,9 @@ function PortalView({
       </header>
 
       <main className="mx-auto max-w-2xl px-4 py-6">
+        <div className="mb-4 empty:hidden">
+          <ScheduleNotices notices={changes.notices} dismiss={changes.dismiss} />
+        </div>
         {queued > 0 && (
           <div className="mb-4 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800">
             📶 {queued} uitslag{queued === 1 ? "" : "en"} wacht{queued === 1 ? "" : "en"} op
@@ -417,7 +428,7 @@ function PortalRow({
             </span>
           ) : (
             highlight && (
-              <span className="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase text-white" style={{ background: "var(--accent)" }}>
+              <span className="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase" style={{ background: "var(--accent)", color: "var(--accent-text)" }}>
                 Volgende wedstrijd
               </span>
             )
@@ -457,13 +468,13 @@ function PortalRow({
               ).map((x, i) => (
                 <div key={i} className="flex flex-1 flex-col items-center gap-1.5">
                   <span className="max-w-full truncate text-sm font-medium">{x.name}</span>
-                  <span className="score text-4xl font-black" style={{ color: "var(--accent)" }}>
+                  <span className="score accent-score text-4xl font-black">
                     {x.score}
                   </span>
                   <div className="flex items-center gap-2">
                     <button
-                      className="h-12 w-16 cursor-pointer rounded-xl text-xl font-black text-white shadow active:scale-95"
-                      style={{ background: "var(--accent)" }}
+                      className="h-12 w-16 cursor-pointer rounded-xl text-xl font-black shadow active:scale-95"
+                      style={{ background: "var(--accent)", color: "var(--accent-text)" }}
                       onClick={() => goal(x.side, 1)}
                     >
                       +1
@@ -501,7 +512,7 @@ function PortalRow({
     >
       <div className="mb-1 flex flex-wrap items-center gap-3 text-xs text-slate-400">
         {highlight && (
-          <span className="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase text-white" style={{ background: "var(--accent)" }}>
+          <span className="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase" style={{ background: "var(--accent)", color: "var(--accent-text)" }}>
             Nu invoeren
           </span>
         )}

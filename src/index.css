@@ -4,6 +4,24 @@
   --accent: #3722e0;
   --accent-strong: color-mix(in oklab, var(--accent) 70%, black);
   --accent-soft: color-mix(in oklab, var(--accent) 9%, white);
+  /* tekst óp de accentkleur; per toernooi overschreven via accentStyle() */
+  --accent-text: #ffffff;
+  /* fellere accent-variant voor op donkere achtergronden (presentatiemodus) */
+  --accent-bright: color-mix(in oklab, var(--accent) 55%, white);
+}
+
+/* Accentkleurige score/tekst: op het donkere TV-scherm automatisch feller */
+.accent-score {
+  color: var(--accent);
+}
+[data-pres="true"] .accent-score {
+  color: var(--accent-bright);
+}
+
+/* Ticker moet op 5 meter leesbaar zijn in presentatiemodus */
+[data-pres="true"] .ticker span {
+  font-size: 1.35rem;
+  color: rgba(255, 255, 255, 0.85);
 }
 
 body {
@@ -186,8 +204,9 @@ table,
   @apply inline-flex items-center justify-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition cursor-pointer select-none;
 }
 .btn-primary {
-  @apply text-white shadow-sm hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed;
+  @apply shadow-sm hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed;
   background: var(--accent);
+  color: var(--accent-text);
 }
 .btn-outline {
   @apply border border-slate-300 bg-white text-slate-700 hover:bg-slate-100;

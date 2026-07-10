@@ -15,6 +15,7 @@ import { saveTournamentToAccount } from "../logic/account";
 import { useSession } from "../logic/auth";
 import { DonateButton } from "../components/monetization";
 import { NextStepBanner } from "../components/NextStepBanner";
+import { accentStyle } from "../logic/color";
 
 /**
  * Houdt een online gezet toernooi synchroon: elke lokale wijziging wordt
@@ -165,7 +166,7 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="min-h-screen" style={{ ["--accent" as string]: t.presentation.accentColor }}>
+    <div className="min-h-screen" style={accentStyle(t.presentation.accentColor)}>
       <header className="accent-header sticky top-0 z-40 flex items-center justify-between px-4 py-3 text-white">
         <button className="flex items-center gap-3 text-lg font-bold cursor-pointer" onClick={() => nav("/app")}>
           <span>←</span> {t.name}

@@ -69,8 +69,8 @@ export function NextStepBanner({ t }: { t: Tournament }) {
   return (
     <div className="mb-5 flex flex-wrap items-center gap-3 rounded-lg border border-slate-200 bg-white p-3 text-sm shadow-sm">
       <span
-        className="rounded-full px-2.5 py-0.5 text-xs font-bold text-white"
-        style={{ background: "var(--accent)" }}
+        className="rounded-full px-2.5 py-0.5 text-xs font-bold"
+        style={{ background: "var(--accent)", color: "var(--accent-text)" }}
       >
         Stap {step.nr}/{TOTAL_STEPS}
       </span>
