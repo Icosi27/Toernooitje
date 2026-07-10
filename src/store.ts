@@ -1,8 +1,31 @@
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
+import { createJSONStorage, persist } from "zustand/middleware";
 import type { Tournament } from "./types";
 import { defaultPresentation, defaultScoring } from "./types";
 import { uid } from "./logic/id";
+import { createAppStorage } from "./logic/storage";
+
+/**
+ * De opslag kan vol raken of geblokkeerd zijn; persist faalt dan stil.
+ * Deze vlag maakt dat zichtbaar in de UI (banner op het dashboard).
+ */
+interface StorageHealth {
+  full: boolean;
+  setFull: (v: boolean) => void;
+}
+
+export const useStorageHealth = create<StorageHealth>((set) => ({
+  full: false,
+  setFull: (v) => set({ full: v }),
+}));
+
+// IndexedDB met localStorage-fallback en eenmalige migratie (logic/storage.ts)
+const guardedStorage = createAppStorage({
+  onWriteError: () => useStorageHealth.getState().setFull(true),
+  onWriteOk: () => {
+    if (useStorageHealth.getState().full) useStorageHealth.getState().setFull(false);
+  },
+});
 
 interface AppState {
   tournaments: Tournament[];
@@ -56,7 +79,7 @@ export const useApp = create<AppState>()(
         }),
       deleteTournament: (id) => set({ tournaments: get().tournaments.filter((t) => t.id !== id) }),
     }),
-    { name: "toernooitje" }
+    { name: "toernooitje", storage: createJSONStorage(() => guardedStorage) }
   )
 );
 

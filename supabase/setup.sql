@@ -105,6 +105,72 @@ begin
 end;
 $$;
 
+-- Scheidsrechter-tokens: elke scheidslink krijgt een eigen token dat alléén
+-- uitslagen mag schrijven, en alleen van wedstrijden die aan die
+-- scheidsrechter (of dat fluitende team) zijn toegewezen. De geheime
+-- writeKey van het toernooi blijft zo bij de organisator.
+create table if not exists public.referee_tokens (
+  tournament_id text not null references public.tournaments(id) on delete cascade,
+  referee_id text not null,
+  token text not null,
+  created_at timestamptz not null default now(),
+  primary key (tournament_id, referee_id)
+);
+alter table public.referee_tokens enable row level security;
+
+create or replace function public.upsert_referee_token(p_tid text, p_key text, p_ref text, p_token text)
+returns void
+language plpgsql
+security definer set search_path = public
+as $$
+begin
+  if not exists (select 1 from tournament_keys where id = p_tid and write_key = p_key) then
+    raise exception 'Ongeldige sleutel';
+  end if;
+  insert into referee_tokens (tournament_id, referee_id, token)
+  values (p_tid, p_ref, p_token)
+  on conflict (tournament_id, referee_id) do update
+    set token = excluded.token, created_at = now();
+end;
+$$;
+
+create or replace function public.submit_score_ref(
+  p_tid text, p_ref text, p_token text, p_match text,
+  p_a int, p_b int, p_pa int default null, p_pb int default null,
+  p_live boolean default false
+)
+returns void
+language plpgsql
+security definer set search_path = public
+as $$
+begin
+  if not exists (
+    select 1 from referee_tokens
+    where tournament_id = p_tid and referee_id = p_ref and token = p_token
+  ) then
+    raise exception 'Ongeldige scheidsrechterlink';
+  end if;
+  -- alleen wedstrijden die aan deze scheidsrechter/dit team zijn toegewezen
+  -- (gecontroleerd tegen de gepubliceerde toernooidata)
+  if not exists (
+    select 1
+    from tournaments t, jsonb_path_query(t.data, 'lax $.**') m
+    where t.id = p_tid
+      and jsonb_typeof(m) = 'object'
+      and m->>'id' = p_match
+      and (m->>'refereeId' = p_ref or m->>'refereeTeamId' = p_ref)
+  ) then
+    raise exception 'Deze wedstrijd is niet aan jou toegewezen';
+  end if;
+  insert into scores (tournament_id, match_id, score_a, score_b, pens_a, pens_b, live, updated_at)
+  values (p_tid, p_match, p_a, p_b, p_pa, p_pb, p_live, now())
+  on conflict (tournament_id, match_id) do update
+    set score_a = excluded.score_a, score_b = excluded.score_b,
+        pens_a = excluded.pens_a, pens_b = excluded.pens_b,
+        live = excluded.live, updated_at = now();
+end;
+$$;
+
 -- Online inschrijvingen. Geen select-policy: e-mailadressen zijn niet
 -- publiek; de organisator leest ze via list_registrations met zijn sleutel.
 create table if not exists public.registrations (
@@ -129,9 +195,23 @@ returns void
 language plpgsql
 security definer set search_path = public
 as $$
+declare
+  t_data jsonb;
 begin
-  if coalesce((select data->>'registrationOpen' from tournaments where id = p_tid), 'false') <> 'true' then
+  select data into t_data from tournaments where id = p_tid;
+  if coalesce(t_data->>'registrationOpen', 'false') <> 'true' then
     raise exception 'De inschrijving is gesloten';
+  end if;
+  -- sluitdatum en teamlimiet van de organisator (vangnet naast de
+  -- gepubliceerde effectieve status, tegen races rond het laatste plekje)
+  if t_data->>'registrationDeadline' is not null
+     and t_data->>'registrationDeadline' < to_char(now(), 'YYYY-MM-DD') then
+    raise exception 'De inschrijftermijn is verstreken';
+  end if;
+  if (t_data->>'registrationLimit') ~ '^[0-9]+$'
+     and (select count(*) from registrations where tournament_id = p_tid and status <> 'afgewezen')
+         >= (t_data->>'registrationLimit')::int then
+    raise exception 'Het toernooi zit vol';
   end if;
   if (select count(*) from registrations where tournament_id = p_tid) >= 500 then
     raise exception 'Maximum aantal inschrijvingen bereikt';

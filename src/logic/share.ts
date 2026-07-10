@@ -1,5 +1,6 @@
 import { compressToEncodedURIComponent, decompressFromEncodedURIComponent } from "lz-string";
 import type { Tournament } from "../types";
+import { registrationState } from "./registration";
 
 /**
  * Publieke versie van een toernooi: persoonsgegevens (e-mails, telefoons,
@@ -10,6 +11,9 @@ export function publicView(t: Tournament): Tournament {
   const pub: Tournament = JSON.parse(JSON.stringify(t));
   delete (pub as Partial<Tournament>).cloud;
   pub.admins = [];
+  // effectieve inschrijfstatus publiceren (limiet/sluitdatum), vóór het
+  // strippen van de inschrijvingen waar die status van afhangt
+  pub.registrationOpen = registrationState(t).open;
   pub.registrations = [];
   pub.referees = pub.referees.map((r) => ({ id: r.id, name: r.name }));
   for (const d of pub.divisions) {

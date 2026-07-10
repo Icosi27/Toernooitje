@@ -18,6 +18,8 @@ export interface Team {
   paid?: boolean;
   shirtColor?: string;
   shortsColor?: string;
+  /** teruggetrokken: openstaande wedstrijden zijn reglementair toegekend */
+  withdrawn?: boolean;
   players: Player[];
 }
 
@@ -30,6 +32,10 @@ export interface Referee {
   fieldIds?: ID[];
   /** beperk tot deze divisies; leeg/undefined = alle divisies */
   divisionIds?: ID[];
+  /** beschikbaar vanaf ("HH:MM"); leeg = vanaf de toernooistart */
+  availableFrom?: string;
+  /** beschikbaar tot ("HH:MM", einde wedstrijd); leeg = de hele dag */
+  availableUntil?: string;
 }
 
 export interface Admin {
@@ -237,10 +243,17 @@ export interface Tournament {
   admins: Admin[];
   matchDuration: number; // minuten
   breakBetween: number; // minuten rust tussen wedstrijden op een veld
+  /** minimale rust (minuten) tussen twee wedstrijden van hetzelfde team; 0/leeg = geen bewaking */
+  minTeamRest?: number;
   startTime: string; // "HH:MM"
   presentation: Presentation;
-  /** online synchronisatie (Supabase); writeKey blijft op het apparaat van de organisator */
-  cloud?: { online: boolean; writeKey: string };
+  /**
+   * Online synchronisatie (Supabase); writeKey blijft op het apparaat van de
+   * organisator. refTokens: per scheidsrechter(-team) een eigen token dat
+   * alléén uitslagen mag schrijven — dat gaat in de scheidslink i.p.v. de
+   * writeKey. Het hele cloud-object wordt vóór publicatie gestript.
+   */
+  cloud?: { online: boolean; writeKey: string; refTokens?: Record<ID, string> };
   /** welke administratievelden per team worden bijgehouden */
   teamFields?: { present: boolean; paid: boolean; email: boolean };
   /** teams fluiten elkaars wedstrijden i.p.v. vaste scheidsrechters */
@@ -251,10 +264,16 @@ export interface Tournament {
   venueMap?: VenueMap;
   /** eventblokken (pauzes, prijsuitreiking) in het speelschema */
   scheduleEvents?: ScheduleEvent[];
+  /** omroep: mededelingen van de organisator ("alles +15 min"), zichtbaar op kijkpagina's en portaal */
+  announcements?: { id: ID; text: string; createdAt: string }[];
   /** online inschrijfpagina voor teams */
   registrationOpen?: boolean;
   registrationInfo?: string;
   registrations?: Registration[];
+  /** maximum aantal (niet-afgewezen) inschrijvingen; daarna automatisch dicht */
+  registrationLimit?: number;
+  /** laatste dag (ISO-datum) waarop inschrijven kan; daarna automatisch dicht */
+  registrationDeadline?: string;
 }
 
 export const defaultScoring = (): ScoringConfig => ({

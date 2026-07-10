@@ -124,6 +124,22 @@ describe("scheidsrechter-voorkeuren", () => {
       .filter((m) => m.refereeId === "r0").length;
     expect(count).toBeLessThanOrEqual(3);
   });
+
+  it("plant een scheidsrechter niet buiten zijn beschikbaarheidsvenster", () => {
+    const t = makeTournament(8, 2, 2);
+    // r0 moet om 10:00 weg en is er pas vanaf 09:20; r1 kan de hele dag
+    t.referees[0].availableFrom = "09:20";
+    t.referees[0].availableUntil = "10:00";
+    autoSchedule(t);
+    const mine = t.divisions
+      .flatMap((d) => allMatches(d))
+      .filter((m) => m.refereeId === "r0");
+    expect(mine.length).toBeGreaterThan(0); // hij fluit wél binnen het venster
+    for (const m of mine) {
+      expect(m.start! >= "09:20").toBe(true);
+      expect(addMinutes(m.start!, t.matchDuration) <= "10:00").toBe(true);
+    }
+  });
 });
 
 describe("teams als scheidsrechters", () => {
@@ -190,5 +206,21 @@ describe("shiftSchedule", () => {
     expect(count).toBeGreaterThan(0);
     expect(first.start).toBe(beforeFirst);
     expect(second.start).toBe(addMinutes(beforeSecond!, 10));
+  });
+
+  it("schuift met een fieldId alleen dat veld op", () => {
+    const t = autoSchedule(makeTournament(8, 2));
+    const fieldA = t.fields[0].id;
+    const rows = scheduledMatches(t);
+    const onA = rows.filter((r) => r.match.fieldId === fieldA);
+    const onB = rows.filter((r) => r.match.fieldId !== fieldA);
+    expect(onA.length).toBeGreaterThan(0);
+    expect(onB.length).toBeGreaterThan(0);
+    const beforeA = onA.map((r) => r.match.start);
+    const beforeB = onB.map((r) => r.match.start);
+    const count = shiftSchedule(t, 15, fieldA);
+    expect(count).toBe(onA.length);
+    onA.forEach((r, i) => expect(r.match.start).toBe(addMinutes(beforeA[i]!, 15)));
+    onB.forEach((r, i) => expect(r.match.start).toBe(beforeB[i]));
   });
 });

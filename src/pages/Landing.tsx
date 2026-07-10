@@ -148,7 +148,7 @@ export default function Landing() {
             <h1 className="text-5xl font-black leading-[1.05] tracking-tight sm:text-6xl">
               Jouw toernooi.
               <br />
-              <span className="grad-text">Championsleague-waardig.</span>
+              <span className="grad-text">Champions League-waardig.</span>
             </h1>
             <p className="mt-6 max-w-md text-lg text-slate-300">
               Poules, speelschema's, live standen en een scorebord voor in de kantine.

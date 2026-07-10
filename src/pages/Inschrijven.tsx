@@ -6,6 +6,10 @@ import { clientFromParams, useCloudTournament } from "../logic/cloud";
 import { submitRegistration } from "../logic/cloud";
 import { uid } from "../logic/id";
 import { fileToDataUrl } from "../logic/files";
+import { nlError } from "../logic/errors";
+import { appUrl, copyText } from "../logic/share";
+import { accentStyle } from "../logic/color";
+import { registrationState } from "../logic/registration";
 import { DonateButton } from "../components/monetization";
 import { KitIcon } from "../components/TeamBadge";
 import { Confetti, Trophy } from "../components/decor";
@@ -37,6 +41,7 @@ export default function Inschrijven() {
 
 function Form({ t, isLocal }: { t: Tournament; isLocal: boolean }) {
   const update = useApp((s) => s.updateTournament);
+  const [params] = useSearchParams();
   const [teamName, setTeamName] = useState("");
   const [divisionId, setDivisionId] = useState(t.divisions[0]?.id ?? "");
   const [contact, setContact] = useState("");
@@ -50,6 +55,14 @@ function Form({ t, isLocal }: { t: Tournament; isLocal: boolean }) {
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  // kijklink voor na de inschrijving: online mét servergegevens uit de
+  // inschrijflink, lokaal (zelfde apparaat) de gewone live-pagina
+  const s = params.get("s");
+  const a = params.get("a");
+  const qs = s && a ? `?s=${encodeURIComponent(s)}&a=${encodeURIComponent(a)}` : "";
+  const watchUrl = isLocal ? appUrl(`/live/${t.id}`) : appUrl(`/kijk/${t.id}${qs}`);
 
   // bij een individuele divisie schrijf je een spéler in, geen team
   const chosenDiv = t.divisions.find((d) => d.id === divisionId) ?? t.divisions[0];
@@ -78,20 +91,21 @@ function Form({ t, isLocal }: { t: Tournament; isLocal: boolean }) {
           (x.registrations ??= []).push(reg);
         });
       } else {
-        const sb = clientFromParams(null, null);
+        // client op basis van de servergegevens uit de inschrijflink zelf
+        const sb = clientFromParams(params.get("s"), params.get("a"));
         if (!sb) throw new Error("Geen verbinding met de server.");
         await submitRegistration(sb, t.id, reg);
       }
       setDone(true);
     } catch (e) {
-      setError(String((e as Error).message ?? e));
+      setError(nlError(e));
     } finally {
       setBusy(false);
     }
   };
 
   return (
-    <div className="min-h-screen" style={{ ["--accent" as string]: t.presentation.accentColor }}>
+    <div className="min-h-screen" style={accentStyle(t.presentation.accentColor)}>
       <header className="stadium px-6 py-8 text-white">
         <div className="mx-auto flex max-w-lg items-center justify-between gap-4">
           <div>
@@ -122,8 +136,26 @@ function Form({ t, isLocal }: { t: Tournament; isLocal: boolean }) {
               )}
               .
             </p>
+            <div className="mt-6 rounded-lg bg-slate-50 p-4 text-left">
+              <div className="text-sm font-semibold">📱 Volg het toernooi live</div>
+              <p className="mt-1 text-xs text-slate-500">
+                Bewaar deze link (of zet 'm alvast in de groepsapp). Zodra het schema bekend is,
+                kies je daar <b>⭐ Mijn team</b> en zie je precies wanneer en waar jullie spelen.
+              </p>
+              <button
+                className="btn-primary mt-3 w-full"
+                onClick={async () => {
+                  if (await copyText(watchUrl)) {
+                    setCopied(true);
+                    setTimeout(() => setCopied(false), 2500);
+                  }
+                }}
+              >
+                {copied ? "✓ Link gekopieerd" : "Kopieer de kijklink"}
+              </button>
+            </div>
             <button
-              className="btn-outline mt-6"
+              className="btn-outline mt-4"
               onClick={() => {
                 setDone(false);
                 setTeamName("");
@@ -133,10 +165,16 @@ function Form({ t, isLocal }: { t: Tournament; isLocal: boolean }) {
               {indiv ? "Nog een speler inschrijven" : "Nog een team inschrijven"}
             </button>
           </div>
-        ) : !t.registrationOpen ? (
+        ) : !registrationState(t).open ? (
           <div className="card p-8 text-center">
-            <div className="mb-3 text-5xl">🔒</div>
-            <h2 className="text-xl font-bold">De inschrijving is gesloten</h2>
+            <div className="mb-3 text-5xl">{registrationState(t).reason === "vol" ? "🈵" : "🔒"}</div>
+            <h2 className="text-xl font-bold">
+              {registrationState(t).reason === "vol"
+                ? "Het toernooi zit vol"
+                : registrationState(t).reason === "verlopen"
+                  ? "De inschrijftermijn is verstreken"
+                  : "De inschrijving is gesloten"}
+            </h2>
             <p className="mt-2 text-sm text-slate-600">
               Neem contact op met de organisatie voor meer informatie.
             </p>

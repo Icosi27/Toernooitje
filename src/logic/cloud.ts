@@ -1,5 +1,6 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { useEffect, useRef, useState } from "react";
+import { create } from "zustand";
 import type { Registration, Tournament } from "../types";
 import { allMatches } from "./resolve";
 import { publicView } from "./share";
@@ -16,6 +17,22 @@ export interface CloudConfig {
   url: string;
   anonKey: string;
 }
+
+/**
+ * Laatste publicatiemoment, gedeeld met tabs die niet bij de Dashboard-state
+ * kunnen (bijv. de sync-indicatie in de planner). Gezet door useCloudSync.
+ */
+interface SyncInfo {
+  lastSync: string | null;
+  error: boolean;
+  setSync: (lastSync: string | null, error: boolean) => void;
+}
+
+export const useSyncInfo = create<SyncInfo>((set) => ({
+  lastSync: null,
+  error: false,
+  setSync: (lastSync, error) => set({ lastSync, error }),
+}));
 
 const CONFIG_KEY = "toernooitje-supabase";
 
@@ -58,11 +75,22 @@ export function getClient(): SupabaseClient | null {
   return client;
 }
 
-/** Kijkers hebben ook een client nodig; de config reist mee in de link (?s=url&k=anonkey). */
+/**
+ * Kijkers hebben ook een client nodig; de config reist mee in de link (?s=url&k=anonkey).
+ * Belangrijk: de config uit een link wordt NIET lokaal bewaard — anders zou het openen
+ * van andermans kijklink de eigen publicatie-server stilletjes overschrijven.
+ */
+const paramClients = new Map<string, SupabaseClient>();
+
 export function clientFromParams(url: string | null, anonKey: string | null): SupabaseClient | null {
   if (url && anonKey) {
-    setCloudConfig({ url, anonKey });
-    return getClient();
+    const key = `${url}\n${anonKey}`;
+    let c = paramClients.get(key);
+    if (!c) {
+      c = createClient(url, anonKey);
+      paramClients.set(key, c);
+    }
+    return c;
   }
   return getClient();
 }
@@ -109,6 +137,53 @@ export async function submitScore(
     p_pa: pa,
     p_pb: pb,
     p_live: live,
+  });
+  if (error) throw new Error(error.message);
+}
+
+/**
+ * Score schrijven met een scheidsrechter-token i.p.v. de writeKey: mag alleen
+ * uitslagen zetten, en alleen van wedstrijden van deze scheidsrechter.
+ */
+export async function submitScoreRef(
+  sb: SupabaseClient,
+  tid: string,
+  refId: string,
+  token: string,
+  matchId: string,
+  a: number | null,
+  b: number | null,
+  pa: number | null = null,
+  pb: number | null = null,
+  live = false
+): Promise<void> {
+  const { error } = await sb.rpc("submit_score_ref", {
+    p_tid: tid,
+    p_ref: refId,
+    p_token: token,
+    p_match: matchId,
+    p_a: a,
+    p_b: b,
+    p_pa: pa,
+    p_pb: pb,
+    p_live: live,
+  });
+  if (error) throw new Error(error.message);
+}
+
+/** Organisator registreert (of rouleert) het token van één scheidsrechter. */
+export async function registerRefToken(
+  sb: SupabaseClient,
+  tid: string,
+  writeKey: string,
+  refId: string,
+  token: string
+): Promise<void> {
+  const { error } = await sb.rpc("upsert_referee_token", {
+    p_tid: tid,
+    p_key: writeKey,
+    p_ref: refId,
+    p_token: token,
   });
   if (error) throw new Error(error.message);
 }

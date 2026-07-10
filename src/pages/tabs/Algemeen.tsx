@@ -4,6 +4,7 @@ import { useApp } from "../../store";
 import { Section } from "../../components/ui";
 import { criterionLabels } from "../../logic/standings";
 import { uid } from "../../logic/id";
+import { Cockpit } from "../../components/Cockpit";
 
 export default function Algemeen() {
   const t = useOutletContext<Tournament>();
@@ -12,6 +13,8 @@ export default function Algemeen() {
 
   return (
     <div className="mx-auto max-w-2xl">
+      <Cockpit t={t} />
+
       <h2 className="mb-1 font-bold">Toernooinaam</h2>
       <input className="input mb-6" value={t.name} onChange={(e) => u((x) => (x.name = e.target.value))} />
 
@@ -264,6 +267,21 @@ export default function Algemeen() {
               className="input"
               value={t.breakBetween}
               onChange={(e) => u((x) => (x.breakBetween = +e.target.value))}
+            />
+          </div>
+          <div>
+            <label className="label" title="Waarschuwt op het schema als een team te snel weer moet spelen (leeg = geen bewaking)">
+              Min. teamrust (min)
+            </label>
+            <input
+              type="number"
+              min={0}
+              className="input"
+              placeholder="—"
+              value={t.minTeamRest ?? ""}
+              onChange={(e) =>
+                u((x) => (x.minTeamRest = e.target.value === "" ? undefined : Math.max(0, +e.target.value)))
+              }
             />
           </div>
         </div>

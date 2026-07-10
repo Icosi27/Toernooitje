@@ -1,10 +1,12 @@
 import { useState } from "react";
-import { useOutletContext } from "react-router-dom";
+import { Link, useOutletContext } from "react-router-dom";
 import type { Tournament } from "../../types";
 import { useApp } from "../../store";
 import { EmptyState, Modal, ModalActions, Section, Toggle, useDivIdx } from "../../components/ui";
 import { appUrl, copyText } from "../../logic/share";
-import { decideRegistration, liveQuery } from "../../logic/cloud";
+import { decideRegistration, getClient, liveQuery, registerRefToken } from "../../logic/cloud";
+import { removeTeamEverywhere, teamInStages, withdrawTeam } from "../../logic/withdraw";
+import { registrationState } from "../../logic/registration";
 import { fileToDataUrl } from "../../logic/files";
 import { KitIcon, TeamBadge } from "../../components/TeamBadge";
 import { uid } from "../../logic/id";
@@ -34,6 +36,31 @@ export default function Deelnemers() {
       setCopied(key);
       setTimeout(() => setCopied(null), 2000);
     }
+  };
+
+  /**
+   * Unieke scheidslink per scheidsrechter(-team), klaar voor WhatsApp of
+   * e-mail. Online krijgt de link een eigen token dat alléén uitslagen van de
+   * eigen wedstrijden mag schrijven; alleen als de server die tokens (nog)
+   * niet kent, valt hij terug op de oude link met de toernooisleutel.
+   */
+  const copyRefLink = async (copyKey: string, refId: string) => {
+    let qs = "";
+    if (t.cloud?.online) {
+      const token = t.cloud.refTokens?.[refId] ?? uid() + uid();
+      try {
+        const sb = getClient();
+        if (!sb) throw new Error("geen verbinding");
+        await registerRefToken(sb, t.id, t.cloud.writeKey, refId, token);
+        u((x) => {
+          if (x.cloud) (x.cloud.refTokens ??= {})[refId] = token;
+        });
+        qs = `${liveQuery(t, false)}&rt=${encodeURIComponent(token)}`;
+      } catch {
+        qs = liveQuery(t, true);
+      }
+    }
+    copy(copyKey, appUrl(`/scheids/${t.id}/${refId}${qs}`));
   };
 
   const div = t.divisions[Math.min(divIdx, t.divisions.length - 1)];
@@ -154,8 +181,16 @@ export default function Deelnemers() {
                     <div key={team.id} className="flex items-center gap-3 px-4 py-2">
                       <span className="w-6 text-xs text-slate-400">{i + 1}</span>
                       <TeamBadge team={team} size={22} />
+                      {team.withdrawn && (
+                        <span
+                          className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold uppercase text-slate-500"
+                          title="Openstaande wedstrijden zijn reglementair naar de tegenstander gegaan"
+                        >
+                          teruggetrokken
+                        </span>
+                      )}
                       <input
-                        className="input border-0 font-medium"
+                        className={`input border-0 font-medium ${team.withdrawn ? "text-slate-400 line-through" : ""}`}
                         value={team.name}
                         onChange={(e) =>
                           u((x) => {
@@ -238,20 +273,46 @@ export default function Deelnemers() {
                         <button
                           className="btn-ghost text-xs"
                           title="Scheidslink: hier vult dit team de uitslagen in van de wedstrijden die het fluit"
-                          onClick={() =>
-                            copy(`ref-${team.id}`, appUrl(`/scheids/${t.id}/${team.id}${liveQuery(t, true)}`))
-                          }
+                          onClick={() => copyRefLink(`ref-${team.id}`, team.id)}
                         >
                           {copied === `ref-${team.id}` ? "✓ gekopieerd" : "🔗 scheidslink"}
+                        </button>
+                      )}
+                      {!team.withdrawn && teamInStages(div, team.id) && (
+                        <button
+                          className="btn-ghost text-xs text-amber-600"
+                          title="Team valt uit: openstaande wedstrijden gaan reglementair (3–0) naar de tegenstander; gespeelde uitslagen blijven staan"
+                          onClick={() => {
+                            if (
+                              !confirm(
+                                `"${team.name}" trekt zich terug?\n\nOpenstaande wedstrijden gaan reglementair (3–0) naar de tegenstander. Gespeelde uitslagen blijven staan.`
+                              )
+                            )
+                              return;
+                            u((x) => {
+                              const d = x.divisions.find((d) => d.id === div.id)!;
+                              withdrawTeam(d, team.id);
+                            });
+                          }}
+                        >
+                          🚪 valt uit
                         </button>
                       )}
                       <button
                         className="btn-ghost text-red-500"
                         onClick={() => {
-                          if (!confirm(`Team "${team.name}" verwijderen?`)) return;
+                          const inStages = teamInStages(div, team.id);
+                          if (
+                            !confirm(
+                              inStages
+                                ? `Team "${team.name}" verwijderen?\n\nHet team verdwijnt ook uit de poule-indeling en openstaande wedstrijden worden geschrapt. Valt het team alleen uit? Gebruik dan "valt uit".`
+                                : `Team "${team.name}" verwijderen?`
+                            )
+                          )
+                            return;
                           u((x) => {
                             const d = x.divisions.find((d) => d.id === div.id)!;
-                            d.teams = d.teams.filter((tm) => tm.id !== team.id);
+                            removeTeamEverywhere(d, team.id);
                           });
                         }}
                       >
@@ -396,9 +457,14 @@ export default function Deelnemers() {
                     {r.maxMatches !== undefined && (
                       <span className="text-xs text-slate-500">· max {r.maxMatches}</span>
                     )}
+                    {(r.availableFrom || r.availableUntil) && (
+                      <span className="text-xs text-slate-500">
+                        · 🕐 {r.availableFrom ?? "start"}–{r.availableUntil ?? "einde"}
+                      </span>
+                    )}
                     <button
                       className="btn-ghost text-xs"
-                      title="Velden, divisies en maximum aantal wedstrijden instellen"
+                      title="Velden, divisies, maximum aantal wedstrijden en beschikbaarheid instellen"
                       onClick={() => {
                         setEditRefId(r.id);
                         setModal("editReferee");
@@ -409,7 +475,7 @@ export default function Deelnemers() {
                     <button
                       className="btn-ghost text-xs"
                       title="Inloglink: pagina waar deze scheidsrechter zijn uitslagen invult"
-                      onClick={() => copy(r.id, appUrl(`/scheids/${t.id}/${r.id}${liveQuery(t, true)}`))}
+                      onClick={() => copyRefLink(r.id, r.id)}
                     >
                       {copied === r.id ? "✓ gekopieerd" : "🔗 inloglink"}
                     </button>
@@ -498,8 +564,15 @@ export default function Deelnemers() {
               <p className="mt-1 text-xs text-slate-500">
                 Teams schrijven zichzelf in via een link; jij accepteert ze hier en ze worden
                 automatisch als team toegevoegd.
-                {!t.cloud?.online &&
-                  " Zet het toernooi live (Presentatie → Delen) zodat de link ook op andere telefoons werkt."}
+                {!t.cloud?.online && (
+                  <>
+                    {" "}
+                    <Link to={`/t/${t.id}/presentatie`} className="underline">
+                      Zet het toernooi live
+                    </Link>{" "}
+                    zodat de link ook op andere telefoons werkt.
+                  </>
+                )}
               </p>
             </div>
             <div className="flex shrink-0 items-center gap-3">
@@ -516,6 +589,54 @@ export default function Deelnemers() {
                 {copied === "reglink" ? "✓ Gekopieerd" : "Kopieer inschrijflink"}
               </button>
             </div>
+          </div>
+
+          <div className="card mb-4 flex flex-wrap items-center gap-x-6 gap-y-3 p-4 text-sm">
+            <label className="flex items-center gap-2 text-xs text-slate-500">
+              Max. aantal teams
+              <input
+                type="number"
+                min={1}
+                className="input w-20"
+                placeholder="—"
+                value={t.registrationLimit ?? ""}
+                onChange={(e) =>
+                  u((x) => (x.registrationLimit = e.target.value ? Math.max(1, +e.target.value) : undefined))
+                }
+              />
+            </label>
+            <label className="flex items-center gap-2 text-xs text-slate-500">
+              Laatste inschrijfdag
+              <input
+                type="date"
+                className="input w-40"
+                value={t.registrationDeadline ?? ""}
+                onChange={(e) => u((x) => (x.registrationDeadline = e.target.value || undefined))}
+              />
+            </label>
+            {(() => {
+              const state = registrationState(t);
+              const count = (t.registrations ?? []).filter((r) => r.status !== "afgewezen").length;
+              if (state.reason === "vol")
+                return (
+                  <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-800">
+                    ⛔ Automatisch gesloten: vol ({count}/{t.registrationLimit})
+                  </span>
+                );
+              if (state.reason === "verlopen")
+                return (
+                  <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-800">
+                    ⛔ Automatisch gesloten: laatste inschrijfdag was {t.registrationDeadline}
+                  </span>
+                );
+              if (state.open && t.registrationLimit)
+                return (
+                  <span className="text-xs text-slate-500">
+                    {count}/{t.registrationLimit} plekken gevuld — sluit vanzelf zodra het vol is
+                  </span>
+                );
+              return null;
+            })()}
           </div>
 
           <div className="card mb-6 p-4">
@@ -834,6 +955,29 @@ export default function Deelnemers() {
                       setRef((r) => (r.maxMatches = e.target.value === "" ? undefined : Math.max(0, +e.target.value)))
                     }
                   />
+                </div>
+                <div>
+                  <label className="label">Beschikbaar (leeg = de hele dag)</label>
+                  <div className="flex items-center gap-2 text-sm text-slate-600">
+                    van
+                    <input
+                      type="time"
+                      className="input w-28"
+                      value={ref.availableFrom ?? ""}
+                      onChange={(e) => setRef((r) => (r.availableFrom = e.target.value || undefined))}
+                    />
+                    tot
+                    <input
+                      type="time"
+                      className="input w-28"
+                      value={ref.availableUntil ?? ""}
+                      onChange={(e) => setRef((r) => (r.availableUntil = e.target.value || undefined))}
+                    />
+                  </div>
+                  <p className="mt-1 text-xs text-slate-500">
+                    Moet iemand eerder weg (bijv. tot 16:00)? De planner plant dan geen wedstrijden
+                    meer die later eindigen.
+                  </p>
                 </div>
                 <p className="text-xs text-slate-400">
                   De planner past dit toe bij "Plan automatisch"; handmatige toewijzingen blijven

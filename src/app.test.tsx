@@ -111,8 +111,10 @@ describe("Programma-tab (Schema)", () => {
         </Routes>
       </MemoryRouter>
     );
-    expect(screen.getByText(/Veld 1/)).toBeTruthy();
-    expect(screen.getByText(/Veld 2/)).toBeTruthy();
+    // "Veld 1" staat zowel als programmakolom als in de uitloop-per-veld-select
+    expect(screen.getAllByText(/Veld 1/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Veld 2/).length).toBeGreaterThan(0);
+    expect(screen.getByText("🟩 Veld 1")).toBeTruthy();
     expect(screen.getByText(/Lunchpauze/)).toBeTruthy();
     expect(screen.getByText(/20 min/)).toBeTruthy();
     expect(screen.getAllByText("+ Pauze").length).toBe(2);

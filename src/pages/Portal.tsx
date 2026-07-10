@@ -1,14 +1,17 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { useApp, useTournament } from "../store";
 import type { Match, Tournament } from "../types";
 import { allMatches, slotLabel, winnerOf } from "../logic/resolve";
 import { isPlayed } from "../logic/standings";
-import { clientFromParams, pushScore, submitScore, useCloudTournament } from "../logic/cloud";
+import { clientFromParams, pushScore, submitScore, submitScoreRef, useCloudTournament } from "../logic/cloud";
 import { addMinutes } from "../logic/schedule";
 import { gatedMatchIds } from "../logic/phases";
 import { DonateButton } from "../components/monetization";
 import { Confetti, Trophy } from "../components/decor";
+import { ScheduleNotices, useScheduleChanges } from "../components/ScheduleNotices";
+import { Announcements } from "../components/Announcements";
+import { accentStyle } from "../logic/color";
 
 type SaveState = "saving" | "saved" | "error";
 
@@ -44,13 +47,103 @@ function LocalPortal({ t, refId }: { t: Tournament; refId?: string }) {
   return <PortalView t={t} refId={refId} onSave={save} status={{}} />;
 }
 
+type PendingScore = { a?: number; b?: number; live?: boolean };
+
 function CloudPortal({ id, refId }: { id?: string; refId?: string }) {
   const [params] = useSearchParams();
   const writeKey = params.get("k");
-  const { t, loading, error, refresh } = useCloudTournament(id, params.get("s"), params.get("a"));
-  // opgeslagen waarden over de serverdata heen leggen tot de refresh ze bevestigt
-  const [pending, setPending] = useState<Record<string, { a?: number; b?: number; live?: boolean }>>({});
+  // scheidsrechter-token: mag alleen uitslagen van eigen wedstrijden schrijven
+  const refToken = params.get("rt");
+  const sbUrl = params.get("s");
+  const sbKey = params.get("a");
+  const { t, loading, error, refresh } = useCloudTournament(id, sbUrl, sbKey);
+
+  // Niet-bevestigde invoer overleeft een refresh of weggeswipete tab: de
+  // wachtrij staat in een eigen (kleine) localStorage-key, los van de app-blob.
+  const queueKey = `toernooitje-portaal-wachtrij-${id}`;
+  const [pending, setPending] = useState<Record<string, PendingScore>>(() => {
+    try {
+      return JSON.parse(localStorage.getItem(queueKey) ?? "{}") as Record<string, PendingScore>;
+    } catch {
+      return {};
+    }
+  });
   const [status, setStatus] = useState<Record<string, SaveState>>({});
+
+  useEffect(() => {
+    try {
+      if (Object.keys(pending).length === 0) localStorage.removeItem(queueKey);
+      else localStorage.setItem(queueKey, JSON.stringify(pending));
+    } catch {
+      // opslag vol: dan werkt de wachtrij alleen binnen deze sessie
+    }
+  }, [pending, queueKey]);
+
+  const doSubmit = (matchId: string, p: PendingScore) => {
+    setStatus((s) => ({ ...s, [matchId]: "saving" }));
+    const sb = clientFromParams(sbUrl, sbKey);
+    if (!sb || !id || (!writeKey && !(refToken && refId))) {
+      setStatus((s) => ({ ...s, [matchId]: "error" }));
+      return;
+    }
+    const submit = writeKey
+      ? submitScore(sb, id, writeKey, matchId, p.a ?? null, p.b ?? null, null, null, p.live ?? false)
+      : submitScoreRef(sb, id, refId!, refToken!, matchId, p.a ?? null, p.b ?? null, null, null, p.live ?? false);
+    submit
+      .then(() => {
+        setStatus((s) => ({ ...s, [matchId]: "saved" }));
+        refresh();
+      })
+      .catch(() => setStatus((s) => ({ ...s, [matchId]: "error" })));
+  };
+
+  // automatische retry: bij herstelde verbinding en elke 15s zolang er iets
+  // in de wachtrij staat (ook invoer uit een vorige sessie, zonder status)
+  const statusRef = useRef(status);
+  statusRef.current = status;
+  const pendingRef = useRef(pending);
+  pendingRef.current = pending;
+  useEffect(() => {
+    if (!t || (!writeKey && !(refToken && refId))) return;
+    const retryAll = () => {
+      for (const [mid, p] of Object.entries(pendingRef.current)) {
+        const st = statusRef.current[mid];
+        if (st === "saving" || st === "saved") continue;
+        doSubmit(mid, p);
+      }
+    };
+    retryAll(); // invoer van vóór een refresh direct opnieuw proberen
+    window.addEventListener("online", retryAll);
+    const iv = setInterval(() => {
+      if (
+        Object.keys(pendingRef.current).some((mid) => {
+          const st = statusRef.current[mid];
+          return st !== "saving" && st !== "saved";
+        })
+      )
+        retryAll();
+    }, 15000);
+    return () => {
+      window.removeEventListener("online", retryAll);
+      clearInterval(iv);
+    };
+  }, [t?.id, writeKey, refToken]);
+
+  // Zodra na een geslaagde opslag verse serverdata binnenkomt, is de overlay
+  // niet meer nodig. Opruimen is belangrijk: anders blijft een oude waarde de
+  // correcties van de organisator voor altijd verbergen op deze telefoon.
+  const lastT = useRef<Tournament | undefined>(undefined);
+  useEffect(() => {
+    if (!t || t === lastT.current) return;
+    lastT.current = t;
+    setPending((prev) => {
+      const confirmed = Object.keys(prev).filter((mid) => status[mid] === "saved");
+      if (confirmed.length === 0) return prev;
+      const next = { ...prev };
+      for (const mid of confirmed) delete next[mid];
+      return next;
+    });
+  }, [t, status]);
 
   if (loading) return <div className="p-10 text-center text-slate-500">Laden…</div>;
   if (error || !t)
@@ -59,7 +152,7 @@ function CloudPortal({ id, refId }: { id?: string; refId?: string }) {
         {error ?? "Toernooi niet gevonden."} <Link to="/" className="underline">Naar home</Link>
       </div>
     );
-  if (!writeKey)
+  if (!writeKey && !(refToken && refId))
     return (
       <div className="p-10 text-center text-slate-600">
         Deze invoerlink is onvolledig (schrijfsleutel ontbreekt). Vraag de organisator om de link
@@ -79,20 +172,14 @@ function CloudPortal({ id, refId }: { id?: string; refId?: string }) {
   }
 
   const save = (matchId: string, a: number | undefined, b: number | undefined, live: boolean) => {
-    setPending((prev) => ({ ...prev, [matchId]: { a, b, live } }));
-    setStatus((s) => ({ ...s, [matchId]: "saving" }));
-    const sb = clientFromParams(null, null);
-    if (!sb) {
-      setStatus((s) => ({ ...s, [matchId]: "error" }));
-      return;
-    }
-    submitScore(sb, t.id, writeKey, matchId, a ?? null, b ?? null, null, null, live)
-      .then(() => {
-        setStatus((s) => ({ ...s, [matchId]: "saved" }));
-        refresh();
-      })
-      .catch(() => setStatus((s) => ({ ...s, [matchId]: "error" })));
+    const p: PendingScore = { a, b, live };
+    setPending((prev) => ({ ...prev, [matchId]: p }));
+    doSubmit(matchId, p);
   };
+
+  const queued = Object.keys(pending).filter(
+    (mid) => status[mid] !== "saved" && status[mid] !== "saving"
+  ).length;
 
   return (
     <PortalView
@@ -100,6 +187,7 @@ function CloudPortal({ id, refId }: { id?: string; refId?: string }) {
       refId={refId}
       onSave={save}
       status={status}
+      queued={queued}
       onRetry={(matchId) => {
         const p = pending[matchId];
         if (p) save(matchId, p.a, p.b, p.live ?? false);
@@ -115,6 +203,7 @@ function PortalView({
   onSave,
   status,
   onRetry,
+  queued = 0,
   cloud = false,
 }: {
   t: Tournament;
@@ -122,10 +211,19 @@ function PortalView({
   onSave: (matchId: string, a: number | undefined, b: number | undefined, live: boolean) => void;
   status: Record<string, SaveState>;
   onRetry?: (matchId: string) => void;
+  /** aantal uitslagen dat nog op verbinding wacht (offline-wachtrij) */
+  queued?: number;
   cloud?: boolean;
 }) {
   const liveMode = !!t.liveScoring;
   const [showDone, setShowDone] = useState(false);
+  const orderRef = useRef<string[]>([]);
+  // verplaatste wedstrijden van deze scheidsrechter expliciet melden
+  const changes = useScheduleChanges(
+    cloud && refId ? t : undefined,
+    refId ?? "",
+    (m) => m.refereeId === refId || m.refereeTeamId === refId
+  );
   // de link kan van een scheidsrechter zijn, of van een team dat fluit
   const referee = refId ? t.referees.find((r) => r.id === refId) : undefined;
   const refTeam = refId && !referee
@@ -146,11 +244,42 @@ function PortalView({
   const fieldName = (fid?: string) => t.fields.find((f) => f.id === fid)?.name;
   const timeRange = (m: Match) =>
     m.start ? `${m.start}–${addMinutes(m.start, t.matchDuration)}` : undefined;
-  const open = rows.filter(({ m }) => !isPlayed(m));
+  let open = rows.filter(({ m }) => !isPlayed(m));
   const done = rows.filter(({ m }) => isPlayed(m));
 
+  // volgorde bevriezen zolang dezelfde wedstrijden openstaan: een verschoven
+  // starttijd (organisator plant om) mag de lijst niet onder je duim laten
+  // verspringen; pas als er een uitslag bij komt, sorteren we opnieuw
+  const openIds = open.map(({ m }) => m.id);
+  if (
+    orderRef.current.length === openIds.length &&
+    openIds.every((id) => orderRef.current.includes(id))
+  ) {
+    const pos = new Map(orderRef.current.map((id, i) => [id, i]));
+    open = [...open].sort((a, b) => (pos.get(a.m.id) ?? 0) - (pos.get(b.m.id) ?? 0));
+  } else {
+    orderRef.current = openIds;
+  }
+
+  // pauzes en evenementen van de dag tussen de wedstrijden tonen ("je bent vrij")
+  const firstOpenStart = open.find(({ m }) => m.start)?.m.start;
+  const events = (t.scheduleEvents ?? [])
+    .filter((e) => e.start && (!firstOpenStart || addMinutes(e.start, e.durationMin) > firstOpenStart))
+    .sort((a, b) => a.start!.localeCompare(b.start!));
+  type OpenRow =
+    | { kind: "match"; m: Match; d: (typeof rows)[number]["d"] }
+    | { kind: "event"; e: NonNullable<Tournament["scheduleEvents"]>[number] };
+  // events invoegen op tijdsvolgorde zónder de (bevroren) wedstrijdvolgorde te raken
+  const openRows: OpenRow[] = open.map(({ m, d }) => ({ kind: "match" as const, m, d }));
+  for (const e of events) {
+    const idx = openRows.findIndex((r) => r.kind === "match" && (r.m.start ?? "99:99") > e.start!);
+    const item: OpenRow = { kind: "event", e };
+    if (idx === -1) openRows.push(item);
+    else openRows.splice(idx, 0, item);
+  }
+
   return (
-    <div className="min-h-screen" style={{ ["--accent" as string]: t.presentation.accentColor }}>
+    <div className="min-h-screen" style={accentStyle(t.presentation.accentColor)}>
       <header className="stadium sticky top-0 z-30 px-4 py-4 text-white">
         <div className="mx-auto flex max-w-2xl items-center justify-between">
           <div>
@@ -173,13 +302,26 @@ function PortalView({
       </header>
 
       <main className="mx-auto max-w-2xl px-4 py-6">
+        <div className="mb-4 empty:hidden">
+          <Announcements t={t} />
+        </div>
+        <div className="mb-4 empty:hidden">
+          <ScheduleNotices notices={changes.notices} dismiss={changes.dismiss} />
+        </div>
+        {queued > 0 && (
+          <div className="mb-4 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+            📶 {queued} uitslag{queued === 1 ? "" : "en"} wacht{queued === 1 ? "" : "en"} op
+            verbinding — je invoer is veilig en wordt automatisch verstuurd zodra er weer bereik
+            is.
+          </div>
+        )}
         <p className="mb-4 text-sm text-slate-500">
           {done.length} van {rows.length} uitslagen ingevuld
         </p>
         {rows.length === 0 && (
           <p className="text-center text-slate-500">
             {refName
-              ? `Er zijn nog geen wedstrijden aan ${refName} toegewezen. Plan het schema (opnieuw) op de Schema-pagina.`
+              ? `Er zijn nog geen wedstrijden aan ${refName} toegewezen. De organisator wijst wedstrijden toe bij het maken van het schema — vernieuw deze pagina later even.`
               : "Er zijn nog geen wedstrijden."}
           </p>
         )}
@@ -198,22 +340,42 @@ function PortalView({
         )}
 
         <div className="space-y-2">
-          {open.map(({ m, d }, i) => (
-            <PortalRow
-              key={m.id}
-              highlight={i === 0}
-              liveMode={liveMode}
-              start={timeRange(m)}
-              field={fieldName(m.fieldId)}
-              division={t.divisions.length > 1 ? d.name : undefined}
-              a={slotLabel(m.a, d, t.scoring)}
-              b={slotLabel(m.b, d, t.scoring)}
-              m={m}
-              state={status[m.id]}
-              onRetry={onRetry ? () => onRetry(m.id) : undefined}
-              onSave={(a, b, live) => onSave(m.id, a, b, live)}
-            />
-          ))}
+          {openRows.map((row) => {
+            if (row.kind === "event") {
+              const e = row.e;
+              return (
+                <div
+                  key={`ev-${e.id}`}
+                  className="flex items-center gap-3 rounded-lg border border-dashed border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-600"
+                >
+                  <span className="score text-xs text-slate-400">
+                    🕐 {e.start}–{addMinutes(e.start!, e.durationMin)}
+                  </span>
+                  <span className="font-semibold">
+                    {e.kind === "pauze" ? "☕" : "🎉"} {e.label}
+                  </span>
+                  <span className="text-xs text-slate-400">— je bent vrij</span>
+                </div>
+              );
+            }
+            const { m, d } = row;
+            return (
+              <PortalRow
+                key={m.id}
+                highlight={m.id === open[0]?.m.id}
+                liveMode={liveMode}
+                start={timeRange(m)}
+                field={fieldName(m.fieldId)}
+                division={t.divisions.length > 1 ? d.name : undefined}
+                a={slotLabel(m.a, d, t.scoring)}
+                b={slotLabel(m.b, d, t.scoring)}
+                m={m}
+                state={status[m.id]}
+                onRetry={onRetry ? () => onRetry(m.id) : undefined}
+                onSave={(a, b, live) => onSave(m.id, a, b, live)}
+              />
+            );
+          })}
         </div>
 
         {done.length > 0 && (
@@ -327,7 +489,7 @@ function PortalRow({
             </span>
           ) : (
             highlight && (
-              <span className="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase text-white" style={{ background: "var(--accent)" }}>
+              <span className="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase" style={{ background: "var(--accent)", color: "var(--accent-text)" }}>
                 Volgende wedstrijd
               </span>
             )
@@ -367,19 +529,19 @@ function PortalRow({
               ).map((x, i) => (
                 <div key={i} className="flex flex-1 flex-col items-center gap-1.5">
                   <span className="max-w-full truncate text-sm font-medium">{x.name}</span>
-                  <span className="score text-4xl font-black" style={{ color: "var(--accent)" }}>
+                  <span className="score accent-score text-4xl font-black">
                     {x.score}
                   </span>
                   <div className="flex items-center gap-2">
                     <button
-                      className="h-12 w-16 cursor-pointer rounded-xl text-xl font-black text-white shadow active:scale-95"
-                      style={{ background: "var(--accent)" }}
+                      className="h-12 w-16 cursor-pointer rounded-xl text-xl font-black shadow active:scale-95"
+                      style={{ background: "var(--accent)", color: "var(--accent-text)" }}
                       onClick={() => goal(x.side, 1)}
                     >
                       +1
                     </button>
                     <button
-                      className="h-8 w-8 cursor-pointer rounded-lg bg-slate-200 text-sm font-bold text-slate-600 active:scale-95"
+                      className="h-12 w-12 cursor-pointer rounded-xl bg-slate-200 text-base font-bold text-slate-600 active:scale-95"
                       title="Correctie: doelpunt eraf"
                       onClick={() => goal(x.side, -1)}
                     >
@@ -411,7 +573,7 @@ function PortalRow({
     >
       <div className="mb-1 flex flex-wrap items-center gap-3 text-xs text-slate-400">
         {highlight && (
-          <span className="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase text-white" style={{ background: "var(--accent)" }}>
+          <span className="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase" style={{ background: "var(--accent)", color: "var(--accent-text)" }}>
             Nu invoeren
           </span>
         )}

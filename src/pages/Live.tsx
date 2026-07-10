@@ -8,10 +8,15 @@ import { qualifyingRanks, resolveSlot, slotLabel, winnerOf } from "../logic/reso
 import { addMinutes, scheduledMatches } from "../logic/schedule";
 import { activeStage, stageMatches } from "../logic/phases";
 import { copyText, decodeShare } from "../logic/share";
+import { qualificationScenario } from "../logic/scenario";
+import { accentStyle } from "../logic/color";
 import { useCloudTournament } from "../logic/cloud";
 import { AdBlock, Boarding, DonateButton } from "../components/monetization";
 import { TeamBadge } from "../components/TeamBadge";
 import { Confetti, Trophy } from "../components/decor";
+import { PodiumCard } from "../components/Podium";
+import { ScheduleNotices, useScheduleChanges } from "../components/ScheduleNotices";
+import { Announcements } from "../components/Announcements";
 import { VenueMapView } from "../components/VenueMap";
 
 type Page = "toernooi" | "standen" | "schema" | "plattegrond";
@@ -90,7 +95,9 @@ function FitToScreen({ children }: { children: React.ReactNode }) {
       const o = outer.current;
       const i = inner.current;
       if (!o || !i) return;
-      const next = Math.min(1.6, Math.max(0.55, o.clientHeight / Math.max(1, i.scrollHeight)));
+      // niet verder krimpen dan 0.75: op het kantinescherm is leesbaarheid
+      // belangrijker dan alles op één dia (standen zijn al opgeknipt in chunks)
+      const next = Math.min(1.6, Math.max(0.75, o.clientHeight / Math.max(1, i.scrollHeight)));
       setScale((cur) => (Math.abs(cur - next) > 0.02 ? next : cur));
     };
     measure();
@@ -135,6 +142,16 @@ function LiveInner({
   const [copied, setCopied] = useState(false);
   // veld dat vanuit het schema is aangetikt (pin op de plattegrond)
   const [pinnedField, setPinnedField] = useState<string | null>(null);
+
+  // verplaatste wedstrijden van mijn team expliciet melden (alleen live-kijkers)
+  const changes = useScheduleChanges(
+    live && myTeam ? t : undefined,
+    myTeam,
+    (m, d) =>
+      m.refereeTeamId === myTeam ||
+      resolveSlot(m.a, d, t!.scoring)?.id === myTeam ||
+      resolveSlot(m.b, d, t!.scoring)?.id === myTeam
+  );
 
   const goToPage = (p: Page) => {
     if (p !== "plattegrond") setPinnedField(null);
@@ -242,7 +259,7 @@ function LiveInner({
     <div
       className={slideshow ? "flex h-screen flex-col overflow-hidden" : "min-h-screen"}
       data-pres={slideshow ? "true" : undefined}
-      style={{ ["--accent" as string]: t.presentation.accentColor }}
+      style={accentStyle(t.presentation.accentColor)}
     >
       <header
         className={`relative shrink-0 overflow-hidden px-6 text-white ${slideshow ? "py-6" : "py-10"} ${t.presentation.background ? "" : "stadium"}`}
@@ -276,7 +293,7 @@ function LiveInner({
             <button
               key={p}
               onClick={() => goToPage(p)}
-              className={`cursor-pointer rounded-full px-4 py-1.5 text-sm font-semibold ${
+              className={`cursor-pointer rounded-full px-4 py-2.5 text-sm font-semibold ${
                 (slideshow ? slide?.page : page) === p ? "bg-white" : "bg-white/20 text-white hover:bg-white/30"
               }`}
               style={(slideshow ? slide?.page : page) === p ? { color: t.presentation.accentColor } : undefined}
@@ -289,7 +306,7 @@ function LiveInner({
               href={`#/inschrijven/${t.id}${
                 window.location.hash.includes("?") ? "?" + window.location.hash.split("?")[1] : ""
               }`}
-              className="cursor-pointer rounded-full bg-white/20 px-4 py-1.5 text-sm font-semibold text-white hover:bg-white/30"
+              className="cursor-pointer rounded-full bg-white/20 px-4 py-2.5 text-sm font-semibold text-white hover:bg-white/30"
             >
               Inschrijven
             </a>
@@ -297,7 +314,7 @@ function LiveInner({
           {!shared && !presentation && (
             <button
               onClick={() => setSlideshow(!slideshow)}
-              className={`ml-auto cursor-pointer rounded-full px-4 py-1.5 text-sm ${
+              className={`ml-auto cursor-pointer rounded-full px-4 py-2.5 text-sm ${
                 slideshow ? "bg-white/90 text-slate-900" : "bg-white/20 text-white hover:bg-white/30"
               }`}
               title="Diavoorstelling voor op een groot scherm: donker, groot en automatisch wisselend"
@@ -315,7 +332,7 @@ function LiveInner({
           <div className="mx-auto flex max-w-4xl flex-wrap items-center gap-2 text-sm">
             <span className="text-slate-500">⭐ Mijn team:</span>
             <select
-              className="cursor-pointer rounded border border-slate-200 px-2 py-1"
+              className="cursor-pointer rounded border border-slate-200 px-3 py-2"
               value={myTeam}
               onChange={(e) => chooseTeam(e.target.value)}
             >
@@ -328,7 +345,12 @@ function LiveInner({
               ))}
             </select>
             {myTeam && (
-              <button className="cursor-pointer text-xs underline" style={{ color: "var(--accent)" }} onClick={shareTeamLink}>
+              <button
+                className="cursor-pointer rounded-full border px-3 py-2 text-xs font-semibold"
+                style={{ color: "var(--accent)", borderColor: "var(--accent)" }}
+                title="Kopieert een link waarin jullie team al gekozen is — ideaal voor de groepsapp"
+                onClick={shareTeamLink}
+              >
                 {copied ? "✓ Link gekopieerd" : "📣 Deel met je team"}
               </button>
             )}
@@ -350,23 +372,38 @@ function LiveInner({
               </p>
             )}
 
+            {!slideshow && <Announcements t={t} />}
+            {!slideshow && <ScheduleNotices notices={changes.notices} dismiss={changes.dismiss} />}
             {myTeam && !slideshow && <NextMatchCard t={t} teamId={myTeam} />}
 
-            <AdBlock t={t} />
-
-            {page === "standen" && t.divisions.map((d) => <ChampionBanner key={`c-${d.id}`} t={t} d={d} />)}
-
-            {page === "toernooi" && <ToernooiInfo t={t} />}
-            {page === "standen" && t.divisions.map((d) => <Standen key={d.id} t={t} d={d} myTeam={myTeam} />)}
-            {page === "schema" && (
-              <SchemaView
-                t={t}
-                myTeam={myTeam}
-                onFieldClick={pages.includes("plattegrond") ? showFieldOnMap : undefined}
-              />
-            )}
-            {page === "plattegrond" && (
-              <VenueMapView t={t} highlightFieldId={pinnedField ?? nextFieldFor(t, myTeam)} />
+            {page === "standen" ? (
+              // de eerste stand eerst, dan pas reclame: het publiek komt voor de stand
+              <>
+                {t.divisions.map((d) => <ChampionBanner key={`c-${d.id}`} t={t} d={d} />)}
+                {t.divisions.map((d) => <PodiumCard key={`p-${d.id}`} t={t} d={d} />)}
+                {t.divisions[0] && (
+                  <Standen key={t.divisions[0].id} t={t} d={t.divisions[0]} myTeam={myTeam} />
+                )}
+                <AdBlock t={t} />
+                {t.divisions.slice(1).map((d) => (
+                  <Standen key={d.id} t={t} d={d} myTeam={myTeam} />
+                ))}
+              </>
+            ) : (
+              <>
+                <AdBlock t={t} />
+                {page === "toernooi" && <ToernooiInfo t={t} />}
+                {page === "schema" && (
+                  <SchemaView
+                    t={t}
+                    myTeam={myTeam}
+                    onFieldClick={pages.includes("plattegrond") ? showFieldOnMap : undefined}
+                  />
+                )}
+                {page === "plattegrond" && (
+                  <VenueMapView t={t} highlightFieldId={pinnedField ?? nextFieldFor(t, myTeam)} />
+                )}
+              </>
             )}
 
             <AdBlock t={t} slot={1} />
@@ -388,8 +425,9 @@ function LiveInner({
         const presDiv = t.divisions.find((dd) => dd.id === slide?.divId) ?? t.divisions[0];
         const wide = slide?.page === "schema" || slide?.page === "plattegrond";
         return (
-          <main className="min-h-0 w-full flex-1 overflow-hidden px-4 py-4">
-            <div className="flex h-full gap-4">
+          <main className="flex min-h-0 w-full flex-1 flex-col overflow-hidden px-4 py-4">
+            <Announcements t={t} big />
+            <div className="flex min-h-0 flex-1 gap-4">
               <Boarding t={t} side="left" />
               <div className="min-w-0 flex-1">
                 <FitToScreen key={`${slide?.page}-${slide?.divId ?? ""}-${slide?.chunk ?? ""}`}>
@@ -398,6 +436,7 @@ function LiveInner({
                     {slide?.page === "standen" && presDiv && (
                       <>
                         <ChampionBanner t={t} d={presDiv} />
+                        <PodiumCard t={t} d={presDiv} />
                         <Standen t={t} d={presDiv} myTeam={myTeam} onlyActive pouleChunk={slide.chunk} />
                       </>
                     )}
@@ -474,40 +513,71 @@ function ChampionBanner({ t, d }: { t: Tournament; d: Division }) {
   return null;
 }
 
-/** Het veld van de eerstvolgende wedstrijd van mijn team (voor de plattegrond-📍). */
+/** Het veld van de eerstvolgende verplichting van mijn team (voor de plattegrond-📍). */
 function nextFieldFor(t: Tournament, teamId: string): string | undefined {
   if (!teamId) return undefined;
   const next = teamMatches(t, teamId).find(({ match: m }) => !isPlayed(m));
   return next?.match.fieldId;
 }
 
-/** Alle wedstrijden van één team (ook toekomstige zodra placeholders bekend zijn). */
-function teamMatches(t: Tournament, teamId: string): { match: Match; division: Division }[] {
-  return scheduledMatches(t).filter(({ match: m, division: d }) => {
-    const a = resolveSlot(m.a, d, t.scoring);
-    const b = resolveSlot(m.b, d, t.scoring);
-    return a?.id === teamId || b?.id === teamId;
+/**
+ * Alle verplichtingen van één team: eigen wedstrijden én fluitbeurten
+ * (refereeTeamId). Een gemiste fluitbeurt legt het toernooi stil, dus die
+ * horen net zo prominent in het dagprogramma als de wedstrijden zelf.
+ */
+function teamMatches(
+  t: Tournament,
+  teamId: string
+): { match: Match; division: Division; ref?: boolean }[] {
+  return scheduledMatches(t).flatMap(({ match: m, division: d }) => {
+    const plays =
+      resolveSlot(m.a, d, t.scoring)?.id === teamId ||
+      resolveSlot(m.b, d, t.scoring)?.id === teamId;
+    const refs = m.refereeTeamId === teamId;
+    if (!plays && !refs) return [];
+    return [{ match: m, division: d, ref: refs && !plays }];
   });
 }
 
-/** Grote kaart: de eerstvolgende wedstrijd van mijn team. */
+/** Grote kaart: de eerstvolgende wedstrijd van mijn team, plus het hele dagprogramma. */
 function NextMatchCard({ t, teamId }: { t: Tournament; teamId: string }) {
   const mine = teamMatches(t, teamId);
-  const next = mine.find(({ match: m }) => !isPlayed(m));
-  const played = mine.filter(({ match: m }) => isPlayed(m));
+  const next = mine.find(({ match: m, ref }) => !ref && !isPlayed(m));
   const fieldName = (id?: string) => t.fields.find((f) => f.id === id)?.name;
   const team = t.divisions.flatMap((d) => d.teams).find((tm) => tm.id === teamId);
+  const last = [...mine].reverse().find(({ match: m }) => m.start);
 
-  if (!next && mine.length === 0)
+  if (mine.length === 0)
     return (
       <div className="card p-4 text-sm text-slate-500">
         Nog geen wedstrijden bekend voor <b>{team?.name}</b>.
       </div>
     );
 
+  const mySide = (m: Match, d: Division): "a" | "b" =>
+    resolveSlot(m.a, d, t.scoring)?.id === teamId ? "a" : "b";
+
+  const myDivision = t.divisions.find((d) => d.teams.some((tm) => tm.id === teamId));
+  const scenario = myDivision ? qualificationScenario(myDivision, teamId, t.scoring) : null;
+
+  // pauzes en evenementen horen in het dagprogramma ("eerst pauze, dan jullie wedstrijd")
+  type DayRow =
+    | { kind: "m"; row: (typeof mine)[number] }
+    | { kind: "e"; e: NonNullable<Tournament["scheduleEvents"]>[number] };
+  const dayRows: DayRow[] = [
+    ...mine.map((row) => ({ kind: "m" as const, row })),
+    ...(t.scheduleEvents ?? [])
+      .filter((e) => e.start)
+      .map((e) => ({ kind: "e" as const, e })),
+  ].sort((a, b) => {
+    const ta = (a.kind === "m" ? a.row.match.start : a.e.start) ?? "99:99";
+    const tb = (b.kind === "m" ? b.row.match.start : b.e.start) ?? "99:99";
+    return ta.localeCompare(tb);
+  });
+
   return (
     <div className="card fade-in overflow-hidden">
-      <div className="px-4 py-1.5 text-xs font-bold uppercase tracking-wide text-white" style={{ background: "var(--accent)" }}>
+      <div className="px-4 py-1.5 text-xs font-bold uppercase tracking-wide" style={{ background: "var(--accent)", color: "var(--accent-text)" }}>
         {next ? (next.match.inProgress ? "🔴 Jullie spelen nu" : "Jullie volgende wedstrijd") : "Alle wedstrijden gespeeld"}
       </div>
       {next && (
@@ -518,7 +588,7 @@ function NextMatchCard({ t, teamId }: { t: Tournament; teamId: string }) {
               {next.match.scoreA ?? 0}–{next.match.scoreB ?? 0}
             </span>
           ) : (
-            <span className="score text-3xl font-black" style={{ color: "var(--accent)" }}>
+            <span className="score accent-score text-3xl font-black">
               {next.match.start ?? "—"}
               {next.match.start && (
                 <span className="ml-1 text-base font-bold text-slate-400">
@@ -539,17 +609,75 @@ function NextMatchCard({ t, teamId }: { t: Tournament; teamId: string }) {
           </div>
         </div>
       )}
-      {played.length > 0 && (
-        <div className="border-t border-slate-100 px-4 py-2 text-xs text-slate-500">
-          Gespeeld:{" "}
-          {played
-            .map(
-              ({ match: m, division: d }) =>
-                `${slotLabel(m.a, d, t.scoring)} ${m.scoreA}–${m.scoreB} ${slotLabel(m.b, d, t.scoring)}`
-            )
-            .join(" · ")}
+
+      {scenario && (
+        <div className="border-t border-slate-100 px-4 py-2 text-sm">
+          <span className="mr-1.5">🎯</span>
+          {scenario}
         </div>
       )}
+
+      <div className="border-t border-slate-100 px-4 py-2.5">
+        <div className="mb-1.5 flex items-baseline justify-between gap-2">
+          <span className="text-xs font-bold uppercase tracking-wide text-slate-400">Jullie dag</span>
+          {last?.match.start && (
+            <span className="text-xs text-slate-400">
+              klaar rond {addMinutes(last.match.start, t.matchDuration)}
+            </span>
+          )}
+        </div>
+        <div className="space-y-1 text-sm">
+          {dayRows.map((dr) => {
+            if (dr.kind === "e") {
+              const e = dr.e;
+              return (
+                <div key={`ev-${e.id}`} className="flex items-center gap-2 text-slate-500">
+                  <span className="score w-11 shrink-0 text-xs text-slate-400">{e.start}</span>
+                  {t.fields.length > 0 && <span className="w-14 shrink-0" />}
+                  <span className="min-w-0 flex-1 truncate">
+                    {e.kind === "pauze" ? "☕" : "🎉"} {e.label}
+                    <span className="ml-1.5 text-xs text-slate-400">{e.durationMin} min</span>
+                  </span>
+                </div>
+              );
+            }
+            const { match: m, division: d, ref } = dr.row;
+            const isNext = m.id === next?.match.id;
+            const w = winnerOf(m);
+            const result = !ref && isPlayed(m) ? (w === null ? "d" : w === mySide(m, d) ? "w" : "l") : null;
+            return (
+              <div key={m.id} className={`flex items-center gap-2 ${result ? "text-slate-400" : ""}`}>
+                <span className="score w-11 shrink-0 text-xs text-slate-400">{m.start ?? "—"}</span>
+                {t.fields.length > 0 && (
+                  <span className="w-14 shrink-0 truncate text-xs text-slate-400">
+                    {fieldName(m.fieldId) ?? ""}
+                  </span>
+                )}
+                {ref && (
+                  <span className="shrink-0 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold uppercase text-amber-700">
+                    🟨 fluiten
+                  </span>
+                )}
+                <span className={`min-w-0 flex-1 truncate ${isNext ? "font-semibold" : ""}`}>
+                  {slotLabel(m.a, d, t.scoring)} — {slotLabel(m.b, d, t.scoring)}
+                </span>
+                {result && (
+                  <span
+                    className={`score shrink-0 text-xs font-bold ${
+                      result === "w" ? "text-green-600" : result === "l" ? "text-red-500" : "text-slate-500"
+                    }`}
+                  >
+                    {m.scoreA}–{m.scoreB}
+                  </span>
+                )}
+                {ref && isPlayed(m) && (
+                  <span className="score shrink-0 text-xs text-slate-400">{m.scoreA}–{m.scoreB}</span>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
     </div>
   );
 }
@@ -698,18 +826,36 @@ function Standen({
                     <div key={ri} className="min-w-44">
                       <div className="mb-2 text-xs font-semibold uppercase text-slate-500">{r.name}</div>
                       <div className="space-y-3">
-                        {r.matches.map((m) => (
-                          <div key={m.id} className="rounded border border-slate-200 p-2 text-sm">
-                            <div className="flex justify-between gap-2">
-                              <span className="truncate">{slotLabel(m.a, d, t.scoring)}</span>
-                              <b className="score" style={{ color: "var(--accent)" }}>{m.scoreA ?? ""}</b>
+                        {r.matches.map((m) => {
+                          const mineA = !!myTeam && resolveSlot(m.a, d, t.scoring)?.id === myTeam;
+                          const mineB = !!myTeam && resolveSlot(m.b, d, t.scoring)?.id === myTeam;
+                          return (
+                            <div
+                              key={m.id}
+                              className="rounded border border-slate-200 p-2 text-sm"
+                              style={
+                                mineA || mineB
+                                  ? { boxShadow: "inset 3px 0 0 var(--accent)", background: "var(--accent-soft)" }
+                                  : undefined
+                              }
+                            >
+                              <div className={`flex justify-between gap-2 ${mineA ? "font-semibold" : ""}`}>
+                                <span className="truncate">
+                                  {slotLabel(m.a, d, t.scoring)}
+                                  {mineA && <span className="ml-1 text-xs" style={{ color: "var(--accent)" }}>⭐</span>}
+                                </span>
+                                <b className="score accent-score">{m.scoreA ?? ""}</b>
+                              </div>
+                              <div className={`flex justify-between gap-2 border-t border-slate-100 pt-1 ${mineB ? "font-semibold" : ""}`}>
+                                <span className="truncate">
+                                  {slotLabel(m.b, d, t.scoring)}
+                                  {mineB && <span className="ml-1 text-xs" style={{ color: "var(--accent)" }}>⭐</span>}
+                                </span>
+                                <b className="score accent-score">{m.scoreB ?? ""}</b>
+                              </div>
                             </div>
-                            <div className="flex justify-between gap-2 border-t border-slate-100 pt-1">
-                              <span className="truncate">{slotLabel(m.b, d, t.scoring)}</span>
-                              <b className="score" style={{ color: "var(--accent)" }}>{m.scoreB ?? ""}</b>
-                            </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     </div>
                   ))}
@@ -759,6 +905,8 @@ function SchemaView({
   /** presentatie: alleen actieve fases, geen gespeelde wedstrijden, max 12 rijen */
   pres?: boolean;
 }) {
+  // alleen de wedstrijden van mijn team tonen (scheelt scrollen bij 40+ wedstrijden)
+  const [onlyMine, setOnlyMine] = useState(false);
   let rows = scheduledMatches(t);
   const fieldName = (id?: string) => t.fields.find((f) => f.id === id)?.name ?? "—";
   const onMap = new Set((t.venueMap?.blocks ?? []).map((b) => b.fieldId).filter(Boolean));
@@ -817,9 +965,30 @@ function SchemaView({
       resolveSlot(m.a, d, t.scoring)?.id === myTeam || resolveSlot(m.b, d, t.scoring)?.id === myTeam
     );
   };
+  const refsMyTeam = (m: Match) => !!myTeam && m.refereeTeamId === myTeam;
+
+  const shown =
+    onlyMine && myTeam
+      ? merged.filter(
+          (row) =>
+            row.kind === "event" || involvesMyTeam(row.match, row.division) || refsMyTeam(row.match)
+        )
+      : merged;
 
   return (
-    <div className="card fade-in overflow-x-auto">
+    <div className="fade-in">
+    {myTeam && !pres && (
+      <label className="mb-2 flex cursor-pointer items-center gap-2 text-sm text-slate-600">
+        <input
+          type="checkbox"
+          className="h-5 w-5 cursor-pointer accent-(--accent)"
+          checked={onlyMine}
+          onChange={(e) => setOnlyMine(e.target.checked)}
+        />
+        Toon alleen de wedstrijden van mijn team
+      </label>
+    )}
+    <div className="card overflow-x-auto">
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b border-slate-200 text-left text-xs uppercase text-slate-500">
@@ -830,7 +999,7 @@ function SchemaView({
           </tr>
         </thead>
         <tbody>
-          {merged.map((row) => {
+          {shown.map((row) => {
             if (row.kind === "event") {
               const e = row.event;
               return (
@@ -890,10 +1059,15 @@ function SchemaView({
                     {slotLabel(m.b, d, t.scoring)}
                   </span>
                   {m.label && <span className="ml-2 text-xs text-slate-400">{m.label}</span>}
+                  {refsMyTeam(m) && !isPlayed(m) && (
+                    <span className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold uppercase text-amber-700">
+                      🟨 jullie fluiten
+                    </span>
+                  )}
                   {busy.has(m.id) && (
                     <span
-                      className="ml-2 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase text-white"
-                      style={{ background: "var(--accent)" }}
+                      className="ml-2 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase"
+                      style={{ background: "var(--accent)", color: "var(--accent-text)" }}
                     >
                       ● bezig
                     </span>
@@ -901,7 +1075,7 @@ function SchemaView({
                 </td>
                 <td className="score px-3 py-2 text-center font-bold">
                   {m.inProgress ? (
-                    <span className="flex items-center justify-center gap-1.5" style={{ color: "var(--accent)" }}>
+                    <span className="accent-score flex items-center justify-center gap-1.5">
                       <span className="live-dot inline-block h-1.5 w-1.5 rounded-full bg-red-500" />
                       {m.scoreA ?? 0} – {m.scoreB ?? 0}
                     </span>
@@ -916,6 +1090,12 @@ function SchemaView({
           })}
         </tbody>
       </table>
+      {shown.length === 0 && (
+        <p className="px-3 py-4 text-center text-sm text-slate-500">
+          Nog geen wedstrijden van jouw team in het schema.
+        </p>
+      )}
+    </div>
     </div>
   );
 }

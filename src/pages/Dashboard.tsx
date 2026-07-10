@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, NavLink, Outlet, useNavigate, useParams } from "react-router-dom";
-import { useApp, useTournament } from "../store";
+import { useApp, useStorageHealth, useTournament } from "../store";
 import type { Tournament } from "../types";
 import {
   applyScores,
@@ -8,11 +8,15 @@ import {
   listRegistrations,
   publishTournament,
   subscribeScores,
+  useSyncInfo,
   type ScoreRow,
 } from "../logic/cloud";
+import { allMatches } from "../logic/resolve";
 import { saveTournamentToAccount } from "../logic/account";
 import { useSession } from "../logic/auth";
 import { DonateButton } from "../components/monetization";
+import { NextStepBanner } from "../components/NextStepBanner";
+import { accentStyle } from "../logic/color";
 
 /**
  * Houdt een online gezet toernooi synchroon: elke lokale wijziging wordt
@@ -21,13 +25,35 @@ import { DonateButton } from "../components/monetization";
  */
 function useCloudSync(t: Tournament | undefined): { error: boolean; lastSync: string | null; retry: () => void } {
   const update = useApp((s) => s.updateTournament);
-  const [syncError, setSyncError] = useState(false);
-  const [lastSync, setLastSync] = useState<string | null>(null);
+  const [syncError, setSyncErrorRaw] = useState(false);
+  const [lastSync, setLastSyncRaw] = useState<string | null>(null);
+  // ook naar de gedeelde store, zodat tabs (planner) de status kunnen tonen
+  const setSyncError = (v: boolean) => {
+    setSyncErrorRaw(v);
+    useSyncInfo.getState().setSync(useSyncInfo.getState().lastSync, v);
+  };
+  const setLastSync = (v: string | null) => {
+    setLastSyncRaw(v);
+    useSyncInfo.getState().setSync(v, false);
+  };
   const online = !!t?.cloud?.online;
-  const tJson = useMemo(
-    () => (online ? JSON.stringify({ ...t, cloud: undefined }) : ""),
-    [t, online]
-  );
+  // Fingerprint zonder scores: uitslagen reizen via de scores-tabel, dus een
+  // binnenkomende scheidsrechterscore hoeft geen republish van de hele blob
+  // te veroorzaken (die zou bij álle kijkers een volledige refetch triggeren).
+  const tJson = useMemo(() => {
+    if (!online || !t) return "";
+    const copy: Tournament = JSON.parse(JSON.stringify({ ...t, cloud: undefined }));
+    for (const d of copy.divisions) {
+      for (const m of allMatches(d)) {
+        delete m.scoreA;
+        delete m.scoreB;
+        delete m.pensA;
+        delete m.pensB;
+        delete m.inProgress;
+      }
+    }
+    return JSON.stringify(copy);
+  }, [t, online]);
   const skipFirst = useRef(true);
 
   // lokale wijzigingen publiceren (debounced)
@@ -137,6 +163,7 @@ export default function Dashboard() {
   const t = useTournament(id);
   const nav = useNavigate();
   const sync = useCloudSync(t);
+  const storageFull = useStorageHealth((s) => s.full);
   useAccountBackup(t);
 
   if (!t) {
@@ -149,7 +176,7 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="min-h-screen" style={{ ["--accent" as string]: t.presentation.accentColor }}>
+    <div className="min-h-screen" style={accentStyle(t.presentation.accentColor)}>
       <header className="accent-header sticky top-0 z-40 flex items-center justify-between px-4 py-3 text-white">
         <button className="flex items-center gap-3 text-lg font-bold cursor-pointer" onClick={() => nav("/app")}>
           <span>←</span> {t.name}
@@ -173,14 +200,49 @@ export default function Dashboard() {
               </span>
             ))}
           <DonateButton small />
-          <Link to={`/live/${t.id}`} className="btn text-white text-sm hover:bg-white/10">
+          <Link
+            to={`/live/${t.id}`}
+            className="rounded-full bg-white/15 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/25"
+          >
             🖥️ Presentatie
           </Link>
         </div>
       </header>
 
+      {storageFull && (
+        <div className="border-b border-amber-300 bg-amber-100 px-4 py-2 text-sm font-medium text-amber-900">
+          ⚠ De opslag op dit apparaat is vol — wijzigingen worden niet meer bewaard. Verwijder
+          grote afbeeldingen (teamlogo's, achtergrond of sponsors bij Presentatie) om ruimte te
+          maken.
+        </div>
+      )}
+
+      {/* mobiel: horizontale tabbalk — de organisator beheert op de toernooidag vanaf zijn telefoon */}
+      <nav className="sticky top-14 z-30 flex overflow-x-auto border-b border-slate-200 bg-white md:hidden">
+        {NAV.map((n) => (
+          <NavLink
+            key={n.to}
+            to={n.to}
+            end={n.end}
+            className={({ isActive }) =>
+              `flex min-w-16 shrink-0 flex-col items-center gap-0.5 px-3 py-2 text-[11px] ${
+                isActive ? "font-semibold" : "text-slate-500"
+              }`
+            }
+            style={({ isActive }) =>
+              isActive
+                ? { color: "var(--accent)", boxShadow: "inset 0 -2px 0 var(--accent)" }
+                : undefined
+            }
+          >
+            <span className="text-lg">{n.icon}</span>
+            {n.label}
+          </NavLink>
+        ))}
+      </nav>
+
       <div className="flex">
-        <nav className="sticky top-14 h-[calc(100vh-3.5rem)] w-24 shrink-0 border-r border-slate-200 bg-white py-4">
+        <nav className="sticky top-14 hidden h-[calc(100vh-3.5rem)] w-24 shrink-0 border-r border-slate-200 bg-white py-4 md:block">
           {NAV.map((n) => (
             <NavLink
               key={n.to}
@@ -198,7 +260,8 @@ export default function Dashboard() {
             </NavLink>
           ))}
         </nav>
-        <main className="min-w-0 flex-1 px-6 py-6">
+        <main className="min-w-0 flex-1 px-4 py-6 sm:px-6">
+          <NextStepBanner t={t} />
           <Outlet context={t} />
         </main>
       </div>

@@ -135,7 +135,10 @@ export function autoSchedule(t: Tournament): Tournament {
     const eligible = (r: Tournament["referees"][0], m: Match, d: Division) =>
       (!r.fieldIds?.length || (!!m.fieldId && r.fieldIds.includes(m.fieldId))) &&
       (!r.divisionIds?.length || r.divisionIds.includes(d.id)) &&
-      (r.maxMatches === undefined || (refCount[r.id] ?? 0) < r.maxMatches);
+      (r.maxMatches === undefined || (refCount[r.id] ?? 0) < r.maxMatches) &&
+      // beschikbaarheidsvenster: de wedstrijd moet er helemaal in passen
+      (!r.availableFrom || r.availableFrom <= m.start!) &&
+      (!r.availableUntil || addMinutes(m.start!, t.matchDuration) <= r.availableUntil);
     for (const item of chrono) {
       const m = item.match;
       if (!m.start) continue;
@@ -163,15 +166,17 @@ export function autoSchedule(t: Tournament): Tournament {
 
 /**
  * Uitloop op de dag zelf: schuif alle nog niet gespeelde, geplande
- * wedstrijden een aantal minuten op (negatief = terug).
+ * wedstrijden een aantal minuten op (negatief = terug). Met een fieldId
+ * schuift alleen dat veld — uitloop is zelden symmetrisch over de velden.
  */
-export function shiftSchedule(t: Tournament, minutes: number): number {
+export function shiftSchedule(t: Tournament, minutes: number, fieldId?: string): number {
   let count = 0;
   let earliest: string | undefined;
   for (const d of t.divisions) {
     for (const m of allMatches(d)) {
       if (!m.start) continue;
       if (m.scoreA !== undefined && m.scoreB !== undefined) continue;
+      if (fieldId && m.fieldId !== fieldId) continue;
       if (earliest === undefined || m.start < earliest) earliest = m.start;
       m.start = addMinutes(m.start, minutes);
       count++;
@@ -181,6 +186,7 @@ export function shiftSchedule(t: Tournament, minutes: number): number {
   // events die al geweest zijn (vóór de eerste verschoven wedstrijd) niet
   for (const e of t.scheduleEvents ?? []) {
     if (!e.start) continue;
+    if (fieldId && e.fieldId !== fieldId) continue;
     if (earliest !== undefined && e.start < earliest) continue;
     e.start = addMinutes(e.start, minutes);
   }

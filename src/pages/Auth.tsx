@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { resetPassword, signIn, signUp } from "../logic/auth";
+import { nlError } from "../logic/errors";
 
 /** Registreren (/registreren) en inloggen (/login) voor organisatoren. */
 export default function Auth() {
@@ -34,7 +35,7 @@ export default function Auth() {
         nav("/app");
       }
     } catch (e) {
-      setError(String((e as Error).message ?? e));
+      setError(nlError(e));
     } finally {
       setBusy(false);
     }
@@ -50,7 +51,7 @@ export default function Auth() {
       await resetPassword(email.trim());
       setInfo("We hebben je een e-mail gestuurd om je wachtwoord opnieuw in te stellen.");
     } catch (e) {
-      setError(String((e as Error).message ?? e));
+      setError(nlError(e));
     }
   };
 
@@ -116,9 +117,21 @@ export default function Auth() {
                 />
               </div>
               {error && <p className="text-sm text-red-600">{error}</p>}
+              {register && password.length > 0 && password.length < 6 && (
+                <p className="text-xs text-slate-500">
+                  Nog {6 - password.length} teken{6 - password.length === 1 ? "" : "s"} — een
+                  wachtwoord is minimaal 6 tekens lang.
+                </p>
+              )}
               <button
                 className="btn-primary w-full"
-                disabled={busy || !email.trim() || password.length < 6 || (register && !name.trim())}
+                // de 6-tekens-eis geldt alleen bij registreren: een bestaand
+                // (ouder/kort) wachtwoord moet altijd ingevuld kunnen worden
+                disabled={
+                  busy ||
+                  !email.trim() ||
+                  (register ? password.length < 6 || !name.trim() : !password)
+                }
                 onClick={submit}
               >
                 {busy ? "Bezig…" : register ? "Registreren" : "Inloggen"}

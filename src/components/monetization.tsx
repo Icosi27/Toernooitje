@@ -37,7 +37,7 @@ export function AdBlock({ t, slot = 0 }: { t: Tournament; slot?: number }) {
 
   const ad = HOUSE_ADS[i % HOUSE_ADS.length];
   return (
-    <div className="card flex items-center gap-3 border-dashed p-4 text-sm text-slate-600">
+    <div className="card flex items-center gap-3 p-4 text-sm text-slate-600">
       <span className="text-2xl">{ad.emoji}</span>
       <div>
         <span className="mr-2 rounded bg-slate-200 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-500">
@@ -66,8 +66,8 @@ export function Boarding({ t, side }: { t: Tournament; side: "left" | "right" })
   if (t.presentation.adsRemoved && sponsors.length === 0) return null;
 
   return (
-    <aside className="card flex w-24 shrink-0 flex-col items-center gap-3 overflow-hidden p-2 lg:w-28">
-      <span className="text-[9px] font-bold uppercase tracking-widest text-slate-400">
+    <aside className="card flex w-28 shrink-0 flex-col items-center gap-3 overflow-hidden p-2 lg:w-32">
+      <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
         {t.presentation.adsRemoved ? "Sponsors" : "Reclame"}
       </span>
       {t.presentation.adsRemoved ? (
@@ -83,8 +83,8 @@ export function Boarding({ t, side }: { t: Tournament; side: "left" | "right" })
         </div>
       ) : (
         <div className="flex min-h-0 flex-1 flex-col items-center gap-3 py-2">
-          <span className="text-2xl">{HOUSE_ADS[i % HOUSE_ADS.length].emoji}</span>
-          <span className="min-h-0 flex-1 overflow-hidden text-center text-[11px] leading-snug text-slate-500 [writing-mode:vertical-rl]">
+          <span className="text-3xl">{HOUSE_ADS[i % HOUSE_ADS.length].emoji}</span>
+          <span className="min-h-0 flex-1 overflow-hidden text-center text-base font-medium leading-snug text-slate-500 [writing-mode:vertical-rl]">
             {HOUSE_ADS[i % HOUSE_ADS.length].text}
           </span>
         </div>
