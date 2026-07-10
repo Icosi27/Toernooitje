@@ -32,6 +32,10 @@ export interface Referee {
   fieldIds?: ID[];
   /** beperk tot deze divisies; leeg/undefined = alle divisies */
   divisionIds?: ID[];
+  /** beschikbaar vanaf ("HH:MM"); leeg = vanaf de toernooistart */
+  availableFrom?: string;
+  /** beschikbaar tot ("HH:MM", einde wedstrijd); leeg = de hele dag */
+  availableUntil?: string;
 }
 
 export interface Admin {

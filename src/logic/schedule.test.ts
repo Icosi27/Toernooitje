@@ -124,6 +124,22 @@ describe("scheidsrechter-voorkeuren", () => {
       .filter((m) => m.refereeId === "r0").length;
     expect(count).toBeLessThanOrEqual(3);
   });
+
+  it("plant een scheidsrechter niet buiten zijn beschikbaarheidsvenster", () => {
+    const t = makeTournament(8, 2, 2);
+    // r0 moet om 10:00 weg en is er pas vanaf 09:20; r1 kan de hele dag
+    t.referees[0].availableFrom = "09:20";
+    t.referees[0].availableUntil = "10:00";
+    autoSchedule(t);
+    const mine = t.divisions
+      .flatMap((d) => allMatches(d))
+      .filter((m) => m.refereeId === "r0");
+    expect(mine.length).toBeGreaterThan(0); // hij fluit wél binnen het venster
+    for (const m of mine) {
+      expect(m.start! >= "09:20").toBe(true);
+      expect(addMinutes(m.start!, t.matchDuration) <= "10:00").toBe(true);
+    }
+  });
 });
 
 describe("teams als scheidsrechters", () => {

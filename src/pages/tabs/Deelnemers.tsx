@@ -457,9 +457,14 @@ export default function Deelnemers() {
                     {r.maxMatches !== undefined && (
                       <span className="text-xs text-slate-500">· max {r.maxMatches}</span>
                     )}
+                    {(r.availableFrom || r.availableUntil) && (
+                      <span className="text-xs text-slate-500">
+                        · 🕐 {r.availableFrom ?? "start"}–{r.availableUntil ?? "einde"}
+                      </span>
+                    )}
                     <button
                       className="btn-ghost text-xs"
-                      title="Velden, divisies en maximum aantal wedstrijden instellen"
+                      title="Velden, divisies, maximum aantal wedstrijden en beschikbaarheid instellen"
                       onClick={() => {
                         setEditRefId(r.id);
                         setModal("editReferee");
@@ -950,6 +955,29 @@ export default function Deelnemers() {
                       setRef((r) => (r.maxMatches = e.target.value === "" ? undefined : Math.max(0, +e.target.value)))
                     }
                   />
+                </div>
+                <div>
+                  <label className="label">Beschikbaar (leeg = de hele dag)</label>
+                  <div className="flex items-center gap-2 text-sm text-slate-600">
+                    van
+                    <input
+                      type="time"
+                      className="input w-28"
+                      value={ref.availableFrom ?? ""}
+                      onChange={(e) => setRef((r) => (r.availableFrom = e.target.value || undefined))}
+                    />
+                    tot
+                    <input
+                      type="time"
+                      className="input w-28"
+                      value={ref.availableUntil ?? ""}
+                      onChange={(e) => setRef((r) => (r.availableUntil = e.target.value || undefined))}
+                    />
+                  </div>
+                  <p className="mt-1 text-xs text-slate-500">
+                    Moet iemand eerder weg (bijv. tot 16:00)? De planner plant dan geen wedstrijden
+                    meer die later eindigen.
+                  </p>
                 </div>
                 <p className="text-xs text-slate-400">
                   De planner past dit toe bij "Plan automatisch"; handmatige toewijzingen blijven

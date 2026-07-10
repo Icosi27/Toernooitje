@@ -135,7 +135,10 @@ export function autoSchedule(t: Tournament): Tournament {
     const eligible = (r: Tournament["referees"][0], m: Match, d: Division) =>
       (!r.fieldIds?.length || (!!m.fieldId && r.fieldIds.includes(m.fieldId))) &&
       (!r.divisionIds?.length || r.divisionIds.includes(d.id)) &&
-      (r.maxMatches === undefined || (refCount[r.id] ?? 0) < r.maxMatches);
+      (r.maxMatches === undefined || (refCount[r.id] ?? 0) < r.maxMatches) &&
+      // beschikbaarheidsvenster: de wedstrijd moet er helemaal in passen
+      (!r.availableFrom || r.availableFrom <= m.start!) &&
+      (!r.availableUntil || addMinutes(m.start!, t.matchDuration) <= r.availableUntil);
     for (const item of chrono) {
       const m = item.match;
       if (!m.start) continue;

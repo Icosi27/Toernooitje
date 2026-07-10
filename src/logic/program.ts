@@ -264,6 +264,19 @@ export function programConflicts(t: Tournament): Map<ID, string[]> {
   }
   const out = new Map<ID, string[]>();
   const push = (id: ID, msg: string) => out.set(id, [...(out.get(id) ?? []), msg]);
+
+  // scheidsrechter buiten zijn beschikbaarheidsvenster gepland (bijv. moet om
+  // 16:00 weg): de planner voorkomt dit, maar handmatig slepen kan alles
+  for (const e of entries) {
+    if (!e.refereeId) continue;
+    const r = t.referees.find((x) => x.id === e.refereeId);
+    if (!r) continue;
+    if (r.availableFrom && e.start < r.availableFrom)
+      push(e.id, `${r.name} is pas vanaf ${r.availableFrom} beschikbaar`);
+    if (r.availableUntil && e.end > r.availableUntil)
+      push(e.id, `${r.name} is beschikbaar tot ${r.availableUntil} (wedstrijd eindigt ${e.end})`);
+  }
+
   for (let i = 0; i < entries.length; i++) {
     for (let j = i + 1; j < entries.length; j++) {
       const a = entries[i];
