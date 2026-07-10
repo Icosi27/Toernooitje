@@ -32,7 +32,6 @@ export default function Wizard() {
     <div className="min-h-screen">
       <header className="accent-header flex items-center justify-between px-6 py-4 text-white">
         <div className="flex items-center gap-2 text-xl font-bold">🏆 Toernooitje</div>
-        <span className="text-sm font-semibold uppercase">Nederlands</span>
       </header>
 
       <div className="mx-auto mt-10 max-w-lg px-4">
@@ -113,10 +112,10 @@ export default function Wizard() {
 
             {step === 2 && (
               <>
-                <h1 className="text-2xl font-bold">Stel de doelgroep in</h1>
+                <h1 className="text-2xl font-bold">Deel je toernooi op in divisies</h1>
                 <p className="mt-1 text-sm text-slate-600">
-                  Je kunt je toernooi opdelen in meerdere divisies als er verschillende leeftijdsgroepen
-                  of niveaus meedoen.
+                  Spelen er verschillende leeftijden of niveaus mee? Maak voor elk een eigen divisie
+                  met een eigen programma en stand. Eén niveau? Ga gewoon door.
                 </p>
                 <div className="mt-6 space-y-4">
                   {divisions.map((d, i) => (

@@ -185,6 +185,20 @@ export default function Indeling() {
                 </p>
               </>
             )}
+            {(pick === "wk" || pick === "championsleague" || pick === "knockout") &&
+              (() => {
+                const needed = pick === "knockout" ? koSize : pouleCount * teamsPerPoule;
+                const missing = needed - div.teams.length;
+                if (missing <= 0) return null;
+                return (
+                  <p className="rounded bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                    Je hebt nu <b>{div.teams.length}</b> team{div.teams.length === 1 ? "" : "s"};
+                    voor deze indeling zijn er <b>{needed}</b> nodig. We vullen aan met {missing}{" "}
+                    tijdelijk{missing === 1 ? " team" : "e teams"} die je bij Deelnemers hernoemt of
+                    verwijdert.
+                  </p>
+                );
+              })()}
             <p className="text-xs text-slate-500">Je kunt de indeling later altijd nog aanpassen.</p>
           </div>
           <ModalActions onCancel={() => setPick(null)} onSubmit={() => apply(pick)} submitLabel="Aanmaken" />

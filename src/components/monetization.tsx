@@ -37,7 +37,7 @@ export function AdBlock({ t, slot = 0 }: { t: Tournament; slot?: number }) {
 
   const ad = HOUSE_ADS[i % HOUSE_ADS.length];
   return (
-    <div className="card flex items-center gap-3 border-dashed p-4 text-sm text-slate-600">
+    <div className="card flex items-center gap-3 p-4 text-sm text-slate-600">
       <span className="text-2xl">{ad.emoji}</span>
       <div>
         <span className="mr-2 rounded bg-slate-200 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-500">

@@ -276,7 +276,7 @@ function LiveInner({
             <button
               key={p}
               onClick={() => goToPage(p)}
-              className={`cursor-pointer rounded-full px-4 py-1.5 text-sm font-semibold ${
+              className={`cursor-pointer rounded-full px-4 py-2.5 text-sm font-semibold ${
                 (slideshow ? slide?.page : page) === p ? "bg-white" : "bg-white/20 text-white hover:bg-white/30"
               }`}
               style={(slideshow ? slide?.page : page) === p ? { color: t.presentation.accentColor } : undefined}
@@ -289,7 +289,7 @@ function LiveInner({
               href={`#/inschrijven/${t.id}${
                 window.location.hash.includes("?") ? "?" + window.location.hash.split("?")[1] : ""
               }`}
-              className="cursor-pointer rounded-full bg-white/20 px-4 py-1.5 text-sm font-semibold text-white hover:bg-white/30"
+              className="cursor-pointer rounded-full bg-white/20 px-4 py-2.5 text-sm font-semibold text-white hover:bg-white/30"
             >
               Inschrijven
             </a>
@@ -297,7 +297,7 @@ function LiveInner({
           {!shared && !presentation && (
             <button
               onClick={() => setSlideshow(!slideshow)}
-              className={`ml-auto cursor-pointer rounded-full px-4 py-1.5 text-sm ${
+              className={`ml-auto cursor-pointer rounded-full px-4 py-2.5 text-sm ${
                 slideshow ? "bg-white/90 text-slate-900" : "bg-white/20 text-white hover:bg-white/30"
               }`}
               title="Diavoorstelling voor op een groot scherm: donker, groot en automatisch wisselend"
@@ -315,7 +315,7 @@ function LiveInner({
           <div className="mx-auto flex max-w-4xl flex-wrap items-center gap-2 text-sm">
             <span className="text-slate-500">⭐ Mijn team:</span>
             <select
-              className="cursor-pointer rounded border border-slate-200 px-2 py-1"
+              className="cursor-pointer rounded border border-slate-200 px-3 py-2"
               value={myTeam}
               onChange={(e) => chooseTeam(e.target.value)}
             >
@@ -328,7 +328,12 @@ function LiveInner({
               ))}
             </select>
             {myTeam && (
-              <button className="cursor-pointer text-xs underline" style={{ color: "var(--accent)" }} onClick={shareTeamLink}>
+              <button
+                className="cursor-pointer rounded-full border px-3 py-2 text-xs font-semibold"
+                style={{ color: "var(--accent)", borderColor: "var(--accent)" }}
+                title="Kopieert een link waarin jullie team al gekozen is — ideaal voor de groepsapp"
+                onClick={shareTeamLink}
+              >
                 {copied ? "✓ Link gekopieerd" : "📣 Deel met je team"}
               </button>
             )}
@@ -352,21 +357,33 @@ function LiveInner({
 
             {myTeam && !slideshow && <NextMatchCard t={t} teamId={myTeam} />}
 
-            <AdBlock t={t} />
-
-            {page === "standen" && t.divisions.map((d) => <ChampionBanner key={`c-${d.id}`} t={t} d={d} />)}
-
-            {page === "toernooi" && <ToernooiInfo t={t} />}
-            {page === "standen" && t.divisions.map((d) => <Standen key={d.id} t={t} d={d} myTeam={myTeam} />)}
-            {page === "schema" && (
-              <SchemaView
-                t={t}
-                myTeam={myTeam}
-                onFieldClick={pages.includes("plattegrond") ? showFieldOnMap : undefined}
-              />
-            )}
-            {page === "plattegrond" && (
-              <VenueMapView t={t} highlightFieldId={pinnedField ?? nextFieldFor(t, myTeam)} />
+            {page === "standen" ? (
+              // de eerste stand eerst, dan pas reclame: het publiek komt voor de stand
+              <>
+                {t.divisions.map((d) => <ChampionBanner key={`c-${d.id}`} t={t} d={d} />)}
+                {t.divisions[0] && (
+                  <Standen key={t.divisions[0].id} t={t} d={t.divisions[0]} myTeam={myTeam} />
+                )}
+                <AdBlock t={t} />
+                {t.divisions.slice(1).map((d) => (
+                  <Standen key={d.id} t={t} d={d} myTeam={myTeam} />
+                ))}
+              </>
+            ) : (
+              <>
+                <AdBlock t={t} />
+                {page === "toernooi" && <ToernooiInfo t={t} />}
+                {page === "schema" && (
+                  <SchemaView
+                    t={t}
+                    myTeam={myTeam}
+                    onFieldClick={pages.includes("plattegrond") ? showFieldOnMap : undefined}
+                  />
+                )}
+                {page === "plattegrond" && (
+                  <VenueMapView t={t} highlightFieldId={pinnedField ?? nextFieldFor(t, myTeam)} />
+                )}
+              </>
             )}
 
             <AdBlock t={t} slot={1} />
@@ -698,18 +715,36 @@ function Standen({
                     <div key={ri} className="min-w-44">
                       <div className="mb-2 text-xs font-semibold uppercase text-slate-500">{r.name}</div>
                       <div className="space-y-3">
-                        {r.matches.map((m) => (
-                          <div key={m.id} className="rounded border border-slate-200 p-2 text-sm">
-                            <div className="flex justify-between gap-2">
-                              <span className="truncate">{slotLabel(m.a, d, t.scoring)}</span>
-                              <b className="score" style={{ color: "var(--accent)" }}>{m.scoreA ?? ""}</b>
+                        {r.matches.map((m) => {
+                          const mineA = !!myTeam && resolveSlot(m.a, d, t.scoring)?.id === myTeam;
+                          const mineB = !!myTeam && resolveSlot(m.b, d, t.scoring)?.id === myTeam;
+                          return (
+                            <div
+                              key={m.id}
+                              className="rounded border border-slate-200 p-2 text-sm"
+                              style={
+                                mineA || mineB
+                                  ? { boxShadow: "inset 3px 0 0 var(--accent)", background: "var(--accent-soft)" }
+                                  : undefined
+                              }
+                            >
+                              <div className={`flex justify-between gap-2 ${mineA ? "font-semibold" : ""}`}>
+                                <span className="truncate">
+                                  {slotLabel(m.a, d, t.scoring)}
+                                  {mineA && <span className="ml-1 text-xs" style={{ color: "var(--accent)" }}>⭐</span>}
+                                </span>
+                                <b className="score" style={{ color: "var(--accent)" }}>{m.scoreA ?? ""}</b>
+                              </div>
+                              <div className={`flex justify-between gap-2 border-t border-slate-100 pt-1 ${mineB ? "font-semibold" : ""}`}>
+                                <span className="truncate">
+                                  {slotLabel(m.b, d, t.scoring)}
+                                  {mineB && <span className="ml-1 text-xs" style={{ color: "var(--accent)" }}>⭐</span>}
+                                </span>
+                                <b className="score" style={{ color: "var(--accent)" }}>{m.scoreB ?? ""}</b>
+                              </div>
                             </div>
-                            <div className="flex justify-between gap-2 border-t border-slate-100 pt-1">
-                              <span className="truncate">{slotLabel(m.b, d, t.scoring)}</span>
-                              <b className="score" style={{ color: "var(--accent)" }}>{m.scoreB ?? ""}</b>
-                            </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     </div>
                   ))}
@@ -759,6 +794,8 @@ function SchemaView({
   /** presentatie: alleen actieve fases, geen gespeelde wedstrijden, max 12 rijen */
   pres?: boolean;
 }) {
+  // alleen de wedstrijden van mijn team tonen (scheelt scrollen bij 40+ wedstrijden)
+  const [onlyMine, setOnlyMine] = useState(false);
   let rows = scheduledMatches(t);
   const fieldName = (id?: string) => t.fields.find((f) => f.id === id)?.name ?? "—";
   const onMap = new Set((t.venueMap?.blocks ?? []).map((b) => b.fieldId).filter(Boolean));
@@ -818,8 +855,25 @@ function SchemaView({
     );
   };
 
+  const shown =
+    onlyMine && myTeam
+      ? merged.filter((row) => row.kind === "event" || involvesMyTeam(row.match, row.division))
+      : merged;
+
   return (
-    <div className="card fade-in overflow-x-auto">
+    <div className="fade-in">
+    {myTeam && !pres && (
+      <label className="mb-2 flex cursor-pointer items-center gap-2 text-sm text-slate-600">
+        <input
+          type="checkbox"
+          className="h-5 w-5 cursor-pointer accent-(--accent)"
+          checked={onlyMine}
+          onChange={(e) => setOnlyMine(e.target.checked)}
+        />
+        Toon alleen de wedstrijden van mijn team
+      </label>
+    )}
+    <div className="card overflow-x-auto">
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b border-slate-200 text-left text-xs uppercase text-slate-500">
@@ -830,7 +884,7 @@ function SchemaView({
           </tr>
         </thead>
         <tbody>
-          {merged.map((row) => {
+          {shown.map((row) => {
             if (row.kind === "event") {
               const e = row.event;
               return (
@@ -916,6 +970,12 @@ function SchemaView({
           })}
         </tbody>
       </table>
+      {shown.length === 0 && (
+        <p className="px-3 py-4 text-center text-sm text-slate-500">
+          Nog geen wedstrijden van jouw team in het schema.
+        </p>
+      )}
+    </div>
     </div>
   );
 }

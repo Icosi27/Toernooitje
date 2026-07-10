@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { useApp, useTournament } from "../store";
 import type { Match, Tournament } from "../types";
@@ -51,6 +51,22 @@ function CloudPortal({ id, refId }: { id?: string; refId?: string }) {
   // opgeslagen waarden over de serverdata heen leggen tot de refresh ze bevestigt
   const [pending, setPending] = useState<Record<string, { a?: number; b?: number; live?: boolean }>>({});
   const [status, setStatus] = useState<Record<string, SaveState>>({});
+
+  // Zodra na een geslaagde opslag verse serverdata binnenkomt, is de overlay
+  // niet meer nodig. Opruimen is belangrijk: anders blijft een oude waarde de
+  // correcties van de organisator voor altijd verbergen op deze telefoon.
+  const lastT = useRef<Tournament | undefined>(undefined);
+  useEffect(() => {
+    if (!t || t === lastT.current) return;
+    lastT.current = t;
+    setPending((prev) => {
+      const confirmed = Object.keys(prev).filter((mid) => status[mid] === "saved");
+      if (confirmed.length === 0) return prev;
+      const next = { ...prev };
+      for (const mid of confirmed) delete next[mid];
+      return next;
+    });
+  }, [t, status]);
 
   if (loading) return <div className="p-10 text-center text-slate-500">Laden…</div>;
   if (error || !t)
@@ -179,7 +195,7 @@ function PortalView({
         {rows.length === 0 && (
           <p className="text-center text-slate-500">
             {refName
-              ? `Er zijn nog geen wedstrijden aan ${refName} toegewezen. Plan het schema (opnieuw) op de Schema-pagina.`
+              ? `Er zijn nog geen wedstrijden aan ${refName} toegewezen. De organisator wijst wedstrijden toe bij het maken van het schema — vernieuw deze pagina later even.`
               : "Er zijn nog geen wedstrijden."}
           </p>
         )}
@@ -379,7 +395,7 @@ function PortalRow({
                       +1
                     </button>
                     <button
-                      className="h-8 w-8 cursor-pointer rounded-lg bg-slate-200 text-sm font-bold text-slate-600 active:scale-95"
+                      className="h-12 w-12 cursor-pointer rounded-xl bg-slate-200 text-base font-bold text-slate-600 active:scale-95"
                       title="Correctie: doelpunt eraf"
                       onClick={() => goal(x.side, -1)}
                     >

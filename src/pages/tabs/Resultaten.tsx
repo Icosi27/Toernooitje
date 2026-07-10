@@ -139,6 +139,11 @@ export default function Resultaten() {
     return (
       <div className="flex flex-wrap items-center gap-2 border-t border-slate-100 py-1.5 text-sm">
         <span className="w-12 text-xs text-slate-400">{m.start ?? ""}</span>
+        {t.fields.length > 0 && (
+          <span className="w-14 truncate text-xs text-slate-400" title="Veld">
+            {t.fields.find((f) => f.id === m.fieldId)?.name ?? ""}
+          </span>
+        )}
         {canEdit(m.a) ? (
           <span className="flex flex-1 justify-end">
             <SlotSelect m={m} side="a" alignRight />

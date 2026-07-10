@@ -58,11 +58,22 @@ export function getClient(): SupabaseClient | null {
   return client;
 }
 
-/** Kijkers hebben ook een client nodig; de config reist mee in de link (?s=url&k=anonkey). */
+/**
+ * Kijkers hebben ook een client nodig; de config reist mee in de link (?s=url&k=anonkey).
+ * Belangrijk: de config uit een link wordt NIET lokaal bewaard — anders zou het openen
+ * van andermans kijklink de eigen publicatie-server stilletjes overschrijven.
+ */
+const paramClients = new Map<string, SupabaseClient>();
+
 export function clientFromParams(url: string | null, anonKey: string | null): SupabaseClient | null {
   if (url && anonKey) {
-    setCloudConfig({ url, anonKey });
-    return getClient();
+    const key = `${url}\n${anonKey}`;
+    let c = paramClients.get(key);
+    if (!c) {
+      c = createClient(url, anonKey);
+      paramClients.set(key, c);
+    }
+    return c;
   }
   return getClient();
 }

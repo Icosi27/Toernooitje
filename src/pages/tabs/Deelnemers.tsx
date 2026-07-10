@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useOutletContext } from "react-router-dom";
+import { Link, useOutletContext } from "react-router-dom";
 import type { Tournament } from "../../types";
 import { useApp } from "../../store";
 import { EmptyState, Modal, ModalActions, Section, Toggle, useDivIdx } from "../../components/ui";
@@ -498,8 +498,15 @@ export default function Deelnemers() {
               <p className="mt-1 text-xs text-slate-500">
                 Teams schrijven zichzelf in via een link; jij accepteert ze hier en ze worden
                 automatisch als team toegevoegd.
-                {!t.cloud?.online &&
-                  " Zet het toernooi live (Presentatie → Delen) zodat de link ook op andere telefoons werkt."}
+                {!t.cloud?.online && (
+                  <>
+                    {" "}
+                    <Link to={`/t/${t.id}/presentatie`} className="underline">
+                      Zet het toernooi live
+                    </Link>{" "}
+                    zodat de link ook op andere telefoons werkt.
+                  </>
+                )}
               </p>
             </div>
             <div className="flex shrink-0 items-center gap-3">

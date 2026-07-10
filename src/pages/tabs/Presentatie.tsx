@@ -5,6 +5,7 @@ import { useApp } from "../../store";
 import { Section, Toggle } from "../../components/ui";
 import { DONATE_URL } from "../../components/monetization";
 import { appUrl, copyText, encodeShare } from "../../logic/share";
+import { nlError } from "../../logic/errors";
 import { effectiveConfig, publishTournament, setCloudConfig } from "../../logic/cloud";
 import { AD_BUYOUT_PRICE, isAdFree, startAdBuyout } from "../../logic/payments";
 import { fileToDataUrl } from "../../logic/files";
@@ -49,7 +50,7 @@ function CloudSharing({
       const fresh = useApp.getState().tournaments.find((x) => x.id === t.id)!;
       await publishTournament(fresh);
     } catch (e) {
-      setError(String((e as Error).message ?? e));
+      setError(nlError(e));
       update(t.id, (x) => {
         if (x.cloud) x.cloud.online = false;
       });
@@ -155,9 +156,10 @@ function CloudSharing({
             </button>
           </div>
           <p className="text-xs text-slate-500">
-            Scheidsrechterlinks kopieer je per scheidsrechter op de Deelnemers-pagina — die bevatten
-            dan automatisch de live-verbinding. Let op: links werken pas op andere telefoons als de
-            app online staat (bijv. GitHub Pages), niet vanaf localhost.
+            Scheidsrechterlinks kopieer je per scheidsrechter op de{" "}
+            <Link to={`/t/${t.id}/deelnemers`} className="underline">Deelnemers-pagina</Link> —
+            elke scheidsrechter krijgt zo zijn eigen unieke link met alleen zíjn wedstrijden,
+            klaar om via WhatsApp of e-mail te versturen.
           </p>
         </div>
       )}

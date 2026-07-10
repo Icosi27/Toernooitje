@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, NavLink, Outlet, useNavigate, useParams } from "react-router-dom";
-import { useApp, useTournament } from "../store";
+import { useApp, useStorageHealth, useTournament } from "../store";
 import type { Tournament } from "../types";
 import {
   applyScores,
@@ -10,6 +10,7 @@ import {
   subscribeScores,
   type ScoreRow,
 } from "../logic/cloud";
+import { allMatches } from "../logic/resolve";
 import { saveTournamentToAccount } from "../logic/account";
 import { useSession } from "../logic/auth";
 import { DonateButton } from "../components/monetization";
@@ -24,10 +25,23 @@ function useCloudSync(t: Tournament | undefined): { error: boolean; lastSync: st
   const [syncError, setSyncError] = useState(false);
   const [lastSync, setLastSync] = useState<string | null>(null);
   const online = !!t?.cloud?.online;
-  const tJson = useMemo(
-    () => (online ? JSON.stringify({ ...t, cloud: undefined }) : ""),
-    [t, online]
-  );
+  // Fingerprint zonder scores: uitslagen reizen via de scores-tabel, dus een
+  // binnenkomende scheidsrechterscore hoeft geen republish van de hele blob
+  // te veroorzaken (die zou bij álle kijkers een volledige refetch triggeren).
+  const tJson = useMemo(() => {
+    if (!online || !t) return "";
+    const copy: Tournament = JSON.parse(JSON.stringify({ ...t, cloud: undefined }));
+    for (const d of copy.divisions) {
+      for (const m of allMatches(d)) {
+        delete m.scoreA;
+        delete m.scoreB;
+        delete m.pensA;
+        delete m.pensB;
+        delete m.inProgress;
+      }
+    }
+    return JSON.stringify(copy);
+  }, [t, online]);
   const skipFirst = useRef(true);
 
   // lokale wijzigingen publiceren (debounced)
@@ -137,6 +151,7 @@ export default function Dashboard() {
   const t = useTournament(id);
   const nav = useNavigate();
   const sync = useCloudSync(t);
+  const storageFull = useStorageHealth((s) => s.full);
   useAccountBackup(t);
 
   if (!t) {
@@ -173,11 +188,22 @@ export default function Dashboard() {
               </span>
             ))}
           <DonateButton small />
-          <Link to={`/live/${t.id}`} className="btn text-white text-sm hover:bg-white/10">
+          <Link
+            to={`/live/${t.id}`}
+            className="rounded-full bg-white/15 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/25"
+          >
             🖥️ Presentatie
           </Link>
         </div>
       </header>
+
+      {storageFull && (
+        <div className="border-b border-amber-300 bg-amber-100 px-4 py-2 text-sm font-medium text-amber-900">
+          ⚠ De opslag op dit apparaat is vol — wijzigingen worden niet meer bewaard. Verwijder
+          grote afbeeldingen (teamlogo's, achtergrond of sponsors bij Presentatie) om ruimte te
+          maken.
+        </div>
+      )}
 
       <div className="flex">
         <nav className="sticky top-14 h-[calc(100vh-3.5rem)] w-24 shrink-0 border-r border-slate-200 bg-white py-4">

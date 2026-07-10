@@ -178,11 +178,12 @@ table,
   background: #1e293b;
 }
 
+/* Eén knop-DNA voor de hele app: dezelfde ronde pilvorm als de landingspagina. */
 .btn,
 .btn-primary,
 .btn-outline,
 .btn-ghost {
-  @apply inline-flex items-center justify-center gap-2 rounded px-4 py-2 text-sm font-semibold uppercase tracking-wide transition cursor-pointer select-none;
+  @apply inline-flex items-center justify-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition cursor-pointer select-none;
 }
 .btn-primary {
   @apply text-white shadow-sm hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed;
