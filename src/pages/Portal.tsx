@@ -216,6 +216,7 @@ function PortalView({
 }) {
   const liveMode = !!t.liveScoring;
   const [showDone, setShowDone] = useState(false);
+  const orderRef = useRef<string[]>([]);
   // verplaatste wedstrijden van deze scheidsrechter expliciet melden
   const changes = useScheduleChanges(
     cloud && refId ? t : undefined,
@@ -242,8 +243,39 @@ function PortalView({
   const fieldName = (fid?: string) => t.fields.find((f) => f.id === fid)?.name;
   const timeRange = (m: Match) =>
     m.start ? `${m.start}–${addMinutes(m.start, t.matchDuration)}` : undefined;
-  const open = rows.filter(({ m }) => !isPlayed(m));
+  let open = rows.filter(({ m }) => !isPlayed(m));
   const done = rows.filter(({ m }) => isPlayed(m));
+
+  // volgorde bevriezen zolang dezelfde wedstrijden openstaan: een verschoven
+  // starttijd (organisator plant om) mag de lijst niet onder je duim laten
+  // verspringen; pas als er een uitslag bij komt, sorteren we opnieuw
+  const openIds = open.map(({ m }) => m.id);
+  if (
+    orderRef.current.length === openIds.length &&
+    openIds.every((id) => orderRef.current.includes(id))
+  ) {
+    const pos = new Map(orderRef.current.map((id, i) => [id, i]));
+    open = [...open].sort((a, b) => (pos.get(a.m.id) ?? 0) - (pos.get(b.m.id) ?? 0));
+  } else {
+    orderRef.current = openIds;
+  }
+
+  // pauzes en evenementen van de dag tussen de wedstrijden tonen ("je bent vrij")
+  const firstOpenStart = open.find(({ m }) => m.start)?.m.start;
+  const events = (t.scheduleEvents ?? [])
+    .filter((e) => e.start && (!firstOpenStart || addMinutes(e.start, e.durationMin) > firstOpenStart))
+    .sort((a, b) => a.start!.localeCompare(b.start!));
+  type OpenRow =
+    | { kind: "match"; m: Match; d: (typeof rows)[number]["d"] }
+    | { kind: "event"; e: NonNullable<Tournament["scheduleEvents"]>[number] };
+  // events invoegen op tijdsvolgorde zónder de (bevroren) wedstrijdvolgorde te raken
+  const openRows: OpenRow[] = open.map(({ m, d }) => ({ kind: "match" as const, m, d }));
+  for (const e of events) {
+    const idx = openRows.findIndex((r) => r.kind === "match" && (r.m.start ?? "99:99") > e.start!);
+    const item: OpenRow = { kind: "event", e };
+    if (idx === -1) openRows.push(item);
+    else openRows.splice(idx, 0, item);
+  }
 
   return (
     <div className="min-h-screen" style={accentStyle(t.presentation.accentColor)}>
@@ -304,22 +336,42 @@ function PortalView({
         )}
 
         <div className="space-y-2">
-          {open.map(({ m, d }, i) => (
-            <PortalRow
-              key={m.id}
-              highlight={i === 0}
-              liveMode={liveMode}
-              start={timeRange(m)}
-              field={fieldName(m.fieldId)}
-              division={t.divisions.length > 1 ? d.name : undefined}
-              a={slotLabel(m.a, d, t.scoring)}
-              b={slotLabel(m.b, d, t.scoring)}
-              m={m}
-              state={status[m.id]}
-              onRetry={onRetry ? () => onRetry(m.id) : undefined}
-              onSave={(a, b, live) => onSave(m.id, a, b, live)}
-            />
-          ))}
+          {openRows.map((row) => {
+            if (row.kind === "event") {
+              const e = row.e;
+              return (
+                <div
+                  key={`ev-${e.id}`}
+                  className="flex items-center gap-3 rounded-lg border border-dashed border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-600"
+                >
+                  <span className="score text-xs text-slate-400">
+                    🕐 {e.start}–{addMinutes(e.start!, e.durationMin)}
+                  </span>
+                  <span className="font-semibold">
+                    {e.kind === "pauze" ? "☕" : "🎉"} {e.label}
+                  </span>
+                  <span className="text-xs text-slate-400">— je bent vrij</span>
+                </div>
+              );
+            }
+            const { m, d } = row;
+            return (
+              <PortalRow
+                key={m.id}
+                highlight={m.id === open[0]?.m.id}
+                liveMode={liveMode}
+                start={timeRange(m)}
+                field={fieldName(m.fieldId)}
+                division={t.divisions.length > 1 ? d.name : undefined}
+                a={slotLabel(m.a, d, t.scoring)}
+                b={slotLabel(m.b, d, t.scoring)}
+                m={m}
+                state={status[m.id]}
+                onRetry={onRetry ? () => onRetry(m.id) : undefined}
+                onSave={(a, b, live) => onSave(m.id, a, b, live)}
+              />
+            );
+          })}
         </div>
 
         {done.length > 0 && (

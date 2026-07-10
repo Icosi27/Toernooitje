@@ -8,6 +8,7 @@ import {
   listRegistrations,
   publishTournament,
   subscribeScores,
+  useSyncInfo,
   type ScoreRow,
 } from "../logic/cloud";
 import { allMatches } from "../logic/resolve";
@@ -24,8 +25,17 @@ import { accentStyle } from "../logic/color";
  */
 function useCloudSync(t: Tournament | undefined): { error: boolean; lastSync: string | null; retry: () => void } {
   const update = useApp((s) => s.updateTournament);
-  const [syncError, setSyncError] = useState(false);
-  const [lastSync, setLastSync] = useState<string | null>(null);
+  const [syncError, setSyncErrorRaw] = useState(false);
+  const [lastSync, setLastSyncRaw] = useState<string | null>(null);
+  // ook naar de gedeelde store, zodat tabs (planner) de status kunnen tonen
+  const setSyncError = (v: boolean) => {
+    setSyncErrorRaw(v);
+    useSyncInfo.getState().setSync(useSyncInfo.getState().lastSync, v);
+  };
+  const setLastSync = (v: string | null) => {
+    setLastSyncRaw(v);
+    useSyncInfo.getState().setSync(v, false);
+  };
   const online = !!t?.cloud?.online;
   // Fingerprint zonder scores: uitslagen reizen via de scores-tabel, dus een
   // binnenkomende scheidsrechterscore hoeft geen republish van de hele blob

@@ -263,6 +263,27 @@ describe("programConflicts", () => {
     expect(conflicts.get(a.id)?.some((m) => m.includes("tot 16:00"))).toBe(true);
   });
 
+  it("waarschuwt bij te korte teamrust als minTeamRest gezet is", () => {
+    const t = planned();
+    t.minTeamRest = 20;
+    const ms = allMatches(t.divisions[0]);
+    const first = ms[0];
+    const second = ms.find(
+      (m) =>
+        m.id !== first.id &&
+        [m.a, m.b].some(
+          (s) => s.kind === "team" && [first.a, first.b].some((x) => x.kind === "team" && x.teamId === s.teamId)
+        )
+    )!;
+    first.start = "09:00";
+    first.fieldId = "f0";
+    // wedstrijd duurt 15 min → 5 min rust, minder dan de 20 vereist
+    second.start = "09:20";
+    second.fieldId = "f1";
+    const conflicts = programConflicts(t);
+    expect(conflicts.get(second.id)?.some((m) => m.includes("min rust"))).toBe(true);
+  });
+
   it("geen valse meldingen in een net gepland schema", () => {
     const t = planned();
     expect(programConflicts(t).size).toBe(0);

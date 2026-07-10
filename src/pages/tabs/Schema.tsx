@@ -24,7 +24,8 @@ import { useApp } from "../../store";
 import { EmptyState, Modal, ModalActions } from "../../components/ui";
 import { addMinutes, autoSchedule, shiftSchedule } from "../../logic/schedule";
 import { printOverview } from "../../logic/print";
-import { splitField } from "../../logic/fields";
+import { closeField, splitField } from "../../logic/fields";
+import { useSyncInfo } from "../../logic/cloud";
 import { allMatches, resolveSlot, slotLabel } from "../../logic/resolve";
 import { isPlayed } from "../../logic/standings";
 import { TeamBadge } from "../../components/TeamBadge";
@@ -103,6 +104,7 @@ export default function Schema() {
     0
   );
   const conflicts = useMemo(() => programConflicts(t), [t]);
+  const syncInfo = useSyncInfo();
 
   // ---- kolommen: blokken per veld + parkeerplek ----
   const blockById = useMemo(() => {
@@ -251,7 +253,20 @@ export default function Schema() {
   return (
     <div className="mx-auto max-w-7xl">
       <div className="mb-6 flex flex-wrap items-center gap-3">
-        <h2 className="mr-auto text-xl font-bold">Programma</h2>
+        <h2 className="text-xl font-bold">Programma</h2>
+        {t.cloud?.online && (
+          <span
+            className={`mr-auto rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+              syncInfo.error ? "bg-amber-100 text-amber-800" : "bg-green-100 text-green-700"
+            }`}
+            title="Wijzigingen in het programma worden automatisch gepubliceerd naar de kijkers"
+          >
+            {syncInfo.error
+              ? "⚠ niet gesynchroniseerd"
+              : `● live${syncInfo.lastSync ? ` · ${syncInfo.lastSync}` : ""}`}
+          </span>
+        )}
+        {!t.cloud?.online && <span className="mr-auto" />}
         <button className="btn-outline" onClick={() => { setFieldName(""); setFieldStart(""); setFieldModal({}); }}>
           Veld toevoegen
         </button>
@@ -398,7 +413,27 @@ export default function Schema() {
                     setFieldModal({ id: f.id });
                   }}
                   onRemoveField={() => {
-                    if (!confirm(`Veld "${f.name}" verwijderen? Wedstrijden op dit veld gaan naar "Niet gepland".`)) return;
+                    const openOnField = t.divisions
+                      .flatMap((d) => allMatches(d))
+                      .filter((m) => m.fieldId === f.id && m.start && !isPlayed(m)).length;
+                    const canRedistribute = openOnField > 0 && t.fields.length > 1;
+                    if (
+                      !confirm(
+                        canRedistribute
+                          ? `Veld "${f.name}" sluiten? Er staan nog ${openOnField} wedstrijd(en) op dit veld.`
+                          : `Veld "${f.name}" verwijderen? Wedstrijden op dit veld gaan naar "Niet gepland".`
+                      )
+                    )
+                      return;
+                    if (
+                      canRedistribute &&
+                      confirm(
+                        `De ${openOnField} resterende wedstrijd(en) automatisch over de andere velden verdelen?\n\nOK = herverdelen · Annuleren = naar "Niet gepland"`
+                      )
+                    ) {
+                      commit(`Veld "${f.name}" gesloten — wedstrijden herverdeeld`, (x) => void closeField(x, f.id));
+                      return;
+                    }
                     commit(`Veld "${f.name}" verwijderd`, (x) => {
                       x.fields = x.fields.filter((y) => y.id !== f.id);
                       for (const d of x.divisions)

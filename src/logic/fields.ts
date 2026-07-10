@@ -1,5 +1,8 @@
-import type { MapBlock, Tournament } from "../types";
+import type { Division, Match, MapBlock, Tournament } from "../types";
 import { uid } from "./id";
+import { allMatches } from "./resolve";
+import { addMinutes } from "./schedule";
+import { isPlayed } from "./standings";
 
 /**
  * Kies voor `parts` veldjes het raster (kolommen x rijen) waarvan de cellen
@@ -20,6 +23,62 @@ export function bestGrid(w: number, h: number, parts: number): { cols: number; r
     }
   }
   return best;
+}
+
+/**
+ * Veld sluiten mét herverdeling: de nog niet gespeelde wedstrijden van dit
+ * veld worden achteraan de andere velden bijgeplant (vroegst vrije veld
+ * eerst, zonder een team dubbel te boeken). Gespeelde wedstrijden behouden
+ * hun historische tijd; pauzes/events op het gesloten veld vervallen.
+ * Geeft het aantal herverdeelde wedstrijden terug; 0 = niets te herverdelen.
+ */
+export function closeField(t: Tournament, fieldId: string): number {
+  const remaining = t.fields.filter((f) => f.id !== fieldId);
+  if (remaining.length === 0) return 0;
+  const slotLen = t.matchDuration + t.breakBetween;
+
+  const displaced: { m: Match; d: Division }[] = [];
+  const busyByTeam: Record<string, [string, string][]> = {};
+  const nextFree: Record<string, string> = {};
+  for (const f of remaining) nextFree[f.id] = f.startTime || t.startTime;
+
+  for (const d of t.divisions) {
+    for (const m of allMatches(d)) {
+      if (!m.start) continue;
+      if (m.fieldId === fieldId && !isPlayed(m)) {
+        displaced.push({ m, d });
+        continue;
+      }
+      const end = addMinutes(m.start, slotLen);
+      if (m.fieldId && nextFree[m.fieldId] !== undefined && end > nextFree[m.fieldId])
+        nextFree[m.fieldId] = end;
+      for (const s of [m.a, m.b])
+        if (s.kind === "team") (busyByTeam[s.teamId] ??= []).push([m.start, end]);
+    }
+  }
+
+  const teamBusy = (tid: string, s: string, e: string) =>
+    (busyByTeam[tid] ?? []).some(([bs, be]) => s < be && e > bs);
+
+  displaced.sort((a, b) => a.m.start!.localeCompare(b.m.start!));
+  for (const { m } of displaced) {
+    let best = remaining[0].id;
+    for (const f of remaining) if (nextFree[f.id] < nextFree[best]) best = f.id;
+    const tids = [m.a, m.b].flatMap((s) => (s.kind === "team" ? [s.teamId] : []));
+    let start = nextFree[best];
+    let guard = 0;
+    while (tids.some((tid) => teamBusy(tid, start, addMinutes(start, slotLen))) && guard++ < 200)
+      start = addMinutes(start, slotLen);
+    const end = addMinutes(start, slotLen);
+    m.fieldId = best;
+    m.start = start;
+    nextFree[best] = end;
+    for (const tid of tids) (busyByTeam[tid] ??= []).push([start, end]);
+  }
+
+  t.fields = remaining;
+  t.scheduleEvents = (t.scheduleEvents ?? []).filter((e) => e.fieldId !== fieldId);
+  return displaced.length;
 }
 
 /**

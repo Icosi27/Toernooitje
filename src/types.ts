@@ -243,6 +243,8 @@ export interface Tournament {
   admins: Admin[];
   matchDuration: number; // minuten
   breakBetween: number; // minuten rust tussen wedstrijden op een veld
+  /** minimale rust (minuten) tussen twee wedstrijden van hetzelfde team; 0/leeg = geen bewaking */
+  minTeamRest?: number;
   startTime: string; // "HH:MM"
   presentation: Presentation;
   /**

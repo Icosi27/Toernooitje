@@ -265,6 +265,30 @@ export function programConflicts(t: Tournament): Map<ID, string[]> {
   const out = new Map<ID, string[]>();
   const push = (id: ID, msg: string) => out.set(id, [...(out.get(id) ?? []), msg]);
 
+  // minimale teamrust bewaken: te korte rust tussen twee wedstrijden van
+  // hetzelfde team levert een gele waarschuwing op de latere wedstrijd op
+  if (t.minTeamRest && t.minTeamRest > 0) {
+    const toMin = (hhmm: string) => {
+      const [h, m] = hhmm.split(":").map(Number);
+      return h * 60 + m;
+    };
+    const byTeam = new Map<ID, { entry: (typeof entries)[number]; name: string }[]>();
+    for (const e of entries)
+      for (const team of e.teams)
+        byTeam.set(team.id, [...(byTeam.get(team.id) ?? []), { entry: e, name: team.name }]);
+    for (const list of byTeam.values()) {
+      list.sort((a, b) => a.entry.start.localeCompare(b.entry.start));
+      for (let i = 1; i < list.length; i++) {
+        const rest = toMin(list[i].entry.start) - toMin(list[i - 1].entry.end);
+        if (rest >= 0 && rest < t.minTeamRest)
+          push(
+            list[i].entry.id,
+            `${list[i].name} heeft maar ${rest} min rust na de wedstrijd van ${list[i - 1].entry.start} (minimaal ${t.minTeamRest})`
+          );
+      }
+    }
+  }
+
   // scheidsrechter buiten zijn beschikbaarheidsvenster gepland (bijv. moet om
   // 16:00 weg): de planner voorkomt dit, maar handmatig slepen kan alles
   for (const e of entries) {

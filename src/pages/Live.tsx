@@ -557,6 +557,21 @@ function NextMatchCard({ t, teamId }: { t: Tournament; teamId: string }) {
   const myDivision = t.divisions.find((d) => d.teams.some((tm) => tm.id === teamId));
   const scenario = myDivision ? qualificationScenario(myDivision, teamId, t.scoring) : null;
 
+  // pauzes en evenementen horen in het dagprogramma ("eerst pauze, dan jullie wedstrijd")
+  type DayRow =
+    | { kind: "m"; row: (typeof mine)[number] }
+    | { kind: "e"; e: NonNullable<Tournament["scheduleEvents"]>[number] };
+  const dayRows: DayRow[] = [
+    ...mine.map((row) => ({ kind: "m" as const, row })),
+    ...(t.scheduleEvents ?? [])
+      .filter((e) => e.start)
+      .map((e) => ({ kind: "e" as const, e })),
+  ].sort((a, b) => {
+    const ta = (a.kind === "m" ? a.row.match.start : a.e.start) ?? "99:99";
+    const tb = (b.kind === "m" ? b.row.match.start : b.e.start) ?? "99:99";
+    return ta.localeCompare(tb);
+  });
+
   return (
     <div className="card fade-in overflow-hidden">
       <div className="px-4 py-1.5 text-xs font-bold uppercase tracking-wide" style={{ background: "var(--accent)", color: "var(--accent-text)" }}>
@@ -609,7 +624,21 @@ function NextMatchCard({ t, teamId }: { t: Tournament; teamId: string }) {
           )}
         </div>
         <div className="space-y-1 text-sm">
-          {mine.map(({ match: m, division: d, ref }) => {
+          {dayRows.map((dr) => {
+            if (dr.kind === "e") {
+              const e = dr.e;
+              return (
+                <div key={`ev-${e.id}`} className="flex items-center gap-2 text-slate-500">
+                  <span className="score w-11 shrink-0 text-xs text-slate-400">{e.start}</span>
+                  {t.fields.length > 0 && <span className="w-14 shrink-0" />}
+                  <span className="min-w-0 flex-1 truncate">
+                    {e.kind === "pauze" ? "☕" : "🎉"} {e.label}
+                    <span className="ml-1.5 text-xs text-slate-400">{e.durationMin} min</span>
+                  </span>
+                </div>
+              );
+            }
+            const { match: m, division: d, ref } = dr.row;
             const isNext = m.id === next?.match.id;
             const w = winnerOf(m);
             const result = !ref && isPlayed(m) ? (w === null ? "d" : w === mySide(m, d) ? "w" : "l") : null;

@@ -1,5 +1,6 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { useEffect, useRef, useState } from "react";
+import { create } from "zustand";
 import type { Registration, Tournament } from "../types";
 import { allMatches } from "./resolve";
 import { publicView } from "./share";
@@ -16,6 +17,22 @@ export interface CloudConfig {
   url: string;
   anonKey: string;
 }
+
+/**
+ * Laatste publicatiemoment, gedeeld met tabs die niet bij de Dashboard-state
+ * kunnen (bijv. de sync-indicatie in de planner). Gezet door useCloudSync.
+ */
+interface SyncInfo {
+  lastSync: string | null;
+  error: boolean;
+  setSync: (lastSync: string | null, error: boolean) => void;
+}
+
+export const useSyncInfo = create<SyncInfo>((set) => ({
+  lastSync: null,
+  error: false,
+  setSync: (lastSync, error) => set({ lastSync, error }),
+}));
 
 const CONFIG_KEY = "toernooitje-supabase";
 

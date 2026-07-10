@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Tournament } from "../types";
 import { defaultPresentation, defaultScoring } from "../types";
-import { bestGrid, splitField } from "./fields";
+import { bestGrid, closeField, splitField } from "./fields";
 import { uid } from "./id";
 
 function makeTournament(): Tournament {
@@ -125,5 +125,69 @@ describe("splitField", () => {
     splitField(t, "bestaat-niet", 2);
     expect(t.fields).toHaveLength(2);
     expect(t.venueMap!.blocks).toHaveLength(2);
+  });
+});
+
+describe("closeField", () => {
+  const division = () => ({
+    id: "d1",
+    name: "Divisie 1",
+    individualMode: false,
+    players: [],
+    teams: [
+      { id: "t1", name: "T1", players: [] },
+      { id: "t2", name: "T2", players: [] },
+      { id: "t3", name: "T3", players: [] },
+      { id: "t4", name: "T4", players: [] },
+    ],
+    stages: [
+      {
+        id: "s1",
+        type: "poules" as const,
+        name: "Poule",
+        poules: [
+          {
+            id: "p1",
+            name: "Poule A",
+            teamIds: ["t1", "t2", "t3", "t4"],
+            matches: [
+              // gespeeld op f2 (blijft), open op f2 (herverdelen), open op f1 (blijft op f1)
+              { id: "m1", a: { kind: "team" as const, teamId: "t1" }, b: { kind: "team" as const, teamId: "t2" }, fieldId: "f2", start: "09:00", scoreA: 1, scoreB: 0 },
+              { id: "m2", a: { kind: "team" as const, teamId: "t3" }, b: { kind: "team" as const, teamId: "t4" }, fieldId: "f2", start: "09:20" },
+              { id: "m3", a: { kind: "team" as const, teamId: "t1" }, b: { kind: "team" as const, teamId: "t3" }, fieldId: "f1", start: "09:30" },
+            ],
+          },
+        ],
+      },
+    ],
+  });
+
+  it("herverdeelt open wedstrijden over de andere velden zonder teamconflict", () => {
+    const t = makeTournament();
+    t.divisions = [division() as never];
+    const moved = closeField(t, "f2");
+    expect(moved).toBe(1);
+    expect(t.fields.map((f) => f.id)).toEqual(["f1"]);
+    const poule = (t.divisions[0].stages[0] as { poules: { matches: import("../types").Match[] }[] }).poules[0];
+    const m1 = poule.matches[0];
+    const m2 = poule.matches[1];
+    const m3 = poule.matches[2];
+    // gespeelde wedstrijd behoudt zijn historie
+    expect(m1.start).toBe("09:00");
+    expect(m1.fieldId).toBe("f2");
+    // open wedstrijd verhuist naar f1, ná de al geplande wedstrijd daar
+    expect(m2.fieldId).toBe("f1");
+    expect(m2.start! >= "09:50").toBe(true);
+    // en de bestaande wedstrijd op f1 blijft staan
+    expect(m3.start).toBe("09:30");
+    expect(m3.fieldId).toBe("f1");
+  });
+
+  it("doet niets als er geen ander veld over is", () => {
+    const t = makeTournament();
+    t.fields = [{ id: "f2", name: "Veld 2" }];
+    t.divisions = [division() as never];
+    expect(closeField(t, "f2")).toBe(0);
+    expect(t.fields.length).toBe(1);
   });
 });
