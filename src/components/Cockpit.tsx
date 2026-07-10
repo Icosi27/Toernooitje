@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import type { Tournament } from "../types";
+import { useApp } from "../store";
 import { scheduledMatches } from "../logic/schedule";
 import { isPlayed } from "../logic/standings";
 import { slotLabel } from "../logic/resolve";
+import { uid } from "../logic/id";
 
 const minutesBetween = (from: string, to: string) => {
   const [fh, fm] = from.split(":").map(Number);
@@ -18,7 +20,9 @@ const minutesBetween = (from: string, to: string) => {
  * toernooidag met een gepland schema; daarbuiten is hij ruis.
  */
 export function Cockpit({ t }: { t: Tournament }) {
+  const update = useApp((s) => s.updateTournament);
   const [now, setNow] = useState(() => new Date());
+  const [msg, setMsg] = useState("");
   useEffect(() => {
     const iv = setInterval(() => setNow(new Date()), 30000);
     return () => clearInterval(iv);
@@ -113,6 +117,56 @@ export function Cockpit({ t }: { t: Tournament }) {
           </div>
         ))}
       </div>
+
+      {/* omroep: bereikt iedereen op de kijklink en de scheidsen — hopen dat
+          mensen toevallig verversen is geen communicatiestrategie */}
+      <div className="border-t border-slate-100 px-4 py-2.5">
+        <div className="flex flex-wrap items-center gap-2">
+          <input
+            className="input min-w-48 flex-1"
+            placeholder="📢 Mededeling voor iedereen (bijv. 'alles schuift 15 min op')"
+            value={msg}
+            maxLength={140}
+            onChange={(e) => setMsg(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && msg.trim() && announce()}
+          />
+          <button className="btn-primary shrink-0" disabled={!msg.trim()} onClick={announce}>
+            Omroepen
+          </button>
+        </div>
+        {(t.announcements ?? []).length > 0 && (
+          <div className="mt-2 space-y-1">
+            {[...(t.announcements ?? [])].reverse().map((a) => (
+              <div key={a.id} className="flex items-center gap-2 text-sm text-slate-600">
+                <span className="score text-xs text-slate-400">{a.createdAt.slice(11, 16)}</span>
+                <span className="min-w-0 flex-1 truncate">📢 {a.text}</span>
+                <button
+                  className="cursor-pointer px-1 text-slate-300 hover:text-red-500"
+                  title="Mededeling intrekken (verdwijnt overal)"
+                  onClick={() =>
+                    update(t.id, (x) => {
+                      x.announcements = (x.announcements ?? []).filter((y) => y.id !== a.id);
+                    })
+                  }
+                >
+                  ✕
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
+
+  function announce() {
+    const text = msg.trim();
+    if (!text) return;
+    // lokale datum+tijd, zodat "vandaag"-filter en tijdweergave kloppen
+    const stamp = `${localDate}T${hhmm}`;
+    update(t.id, (x) => {
+      (x.announcements ??= []).push({ id: uid(), text, createdAt: stamp });
+    });
+    setMsg("");
+  }
 }

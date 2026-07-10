@@ -1,7 +1,8 @@
-import React, { Suspense, lazy } from "react";
+import React, { Suspense, lazy, useEffect, useState } from "react";
 import ReactDOM from "react-dom/client";
 import { createHashRouter, RouterProvider } from "react-router-dom";
 import "./index.css";
+import { useApp } from "./store";
 import Landing from "./pages/Landing";
 
 // Code-splitting per route: een kijker of scheidsrechter op mobiel langs het
@@ -61,8 +62,25 @@ const router = createHashRouter([
   { path: "/scheids/:id/:refId", element: S(<Portal />) },
 ]);
 
+/**
+ * De opslag (IndexedDB) is asynchroon: wacht met renderen tot de toernooien
+ * geladen zijn, anders flitst "Toernooi niet gevonden" voorbij en zou een
+ * vroege wijziging de nog niet geladen data kunnen overschrijven.
+ */
+function App() {
+  const [ready, setReady] = useState(() => useApp.persist.hasHydrated());
+  useEffect(() => {
+    if (ready) return;
+    const off = useApp.persist.onFinishHydration(() => setReady(true));
+    if (useApp.persist.hasHydrated()) setReady(true);
+    return off;
+  }, [ready]);
+  if (!ready) return <div className="p-10 text-center text-slate-500">Laden…</div>;
+  return <RouterProvider router={router} />;
+}
+
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    <RouterProvider router={router} />
+    <App />
   </React.StrictMode>
 );

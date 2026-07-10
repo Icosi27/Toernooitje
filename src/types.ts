@@ -264,6 +264,8 @@ export interface Tournament {
   venueMap?: VenueMap;
   /** eventblokken (pauzes, prijsuitreiking) in het speelschema */
   scheduleEvents?: ScheduleEvent[];
+  /** omroep: mededelingen van de organisator ("alles +15 min"), zichtbaar op kijkpagina's en portaal */
+  announcements?: { id: ID; text: string; createdAt: string }[];
   /** online inschrijfpagina voor teams */
   registrationOpen?: boolean;
   registrationInfo?: string;

@@ -16,6 +16,7 @@ import { TeamBadge } from "../components/TeamBadge";
 import { Confetti, Trophy } from "../components/decor";
 import { PodiumCard } from "../components/Podium";
 import { ScheduleNotices, useScheduleChanges } from "../components/ScheduleNotices";
+import { Announcements } from "../components/Announcements";
 import { VenueMapView } from "../components/VenueMap";
 
 type Page = "toernooi" | "standen" | "schema" | "plattegrond";
@@ -371,6 +372,7 @@ function LiveInner({
               </p>
             )}
 
+            {!slideshow && <Announcements t={t} />}
             {!slideshow && <ScheduleNotices notices={changes.notices} dismiss={changes.dismiss} />}
             {myTeam && !slideshow && <NextMatchCard t={t} teamId={myTeam} />}
 
@@ -423,8 +425,9 @@ function LiveInner({
         const presDiv = t.divisions.find((dd) => dd.id === slide?.divId) ?? t.divisions[0];
         const wide = slide?.page === "schema" || slide?.page === "plattegrond";
         return (
-          <main className="min-h-0 w-full flex-1 overflow-hidden px-4 py-4">
-            <div className="flex h-full gap-4">
+          <main className="flex min-h-0 w-full flex-1 flex-col overflow-hidden px-4 py-4">
+            <Announcements t={t} big />
+            <div className="flex min-h-0 flex-1 gap-4">
               <Boarding t={t} side="left" />
               <div className="min-w-0 flex-1">
                 <FitToScreen key={`${slide?.page}-${slide?.divId ?? ""}-${slide?.chunk ?? ""}`}>

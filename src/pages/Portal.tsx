@@ -10,6 +10,7 @@ import { gatedMatchIds } from "../logic/phases";
 import { DonateButton } from "../components/monetization";
 import { Confetti, Trophy } from "../components/decor";
 import { ScheduleNotices, useScheduleChanges } from "../components/ScheduleNotices";
+import { Announcements } from "../components/Announcements";
 import { accentStyle } from "../logic/color";
 
 type SaveState = "saving" | "saved" | "error";
@@ -301,6 +302,9 @@ function PortalView({
       </header>
 
       <main className="mx-auto max-w-2xl px-4 py-6">
+        <div className="mb-4 empty:hidden">
+          <Announcements t={t} />
+        </div>
         <div className="mb-4 empty:hidden">
           <ScheduleNotices notices={changes.notices} dismiss={changes.dismiss} />
         </div>

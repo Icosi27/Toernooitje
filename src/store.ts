@@ -3,10 +3,11 @@ import { createJSONStorage, persist } from "zustand/middleware";
 import type { Tournament } from "./types";
 import { defaultPresentation, defaultScoring } from "./types";
 import { uid } from "./logic/id";
+import { createAppStorage } from "./logic/storage";
 
 /**
- * localStorage kan vol raken (base64-logo's tellen hard aan tegen de ~5MB-quota).
- * zustand-persist faalt dan stil; deze vlag maakt dat zichtbaar in de UI.
+ * De opslag kan vol raken of geblokkeerd zijn; persist faalt dan stil.
+ * Deze vlag maakt dat zichtbaar in de UI (banner op het dashboard).
  */
 interface StorageHealth {
   full: boolean;
@@ -18,18 +19,13 @@ export const useStorageHealth = create<StorageHealth>((set) => ({
   setFull: (v) => set({ full: v }),
 }));
 
-const guardedStorage = {
-  getItem: (name: string) => localStorage.getItem(name),
-  setItem: (name: string, value: string) => {
-    try {
-      localStorage.setItem(name, value);
-      if (useStorageHealth.getState().full) useStorageHealth.getState().setFull(false);
-    } catch {
-      useStorageHealth.getState().setFull(true);
-    }
+// IndexedDB met localStorage-fallback en eenmalige migratie (logic/storage.ts)
+const guardedStorage = createAppStorage({
+  onWriteError: () => useStorageHealth.getState().setFull(true),
+  onWriteOk: () => {
+    if (useStorageHealth.getState().full) useStorageHealth.getState().setFull(false);
   },
-  removeItem: (name: string) => localStorage.removeItem(name),
-};
+});
 
 interface AppState {
   tournaments: Tournament[];
