@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useApp } from "../store";
+import { uid } from "../logic/id";
 
-/** 3-staps wizard zoals Tournify: naam+dagen, locaties, divisies. */
+/** 4-staps wizard zoals Tournify: naam+dagen, locaties, divisies, speelschema-basis. */
 export default function Wizard() {
   const nav = useNavigate();
   const createTournament = useApp((s) => s.createTournament);
@@ -13,6 +14,10 @@ export default function Wizard() {
   const [esport, setEsport] = useState(false);
   const [individual, setIndividual] = useState(false);
   const [divisions, setDivisions] = useState<string[]>(["Divisie 1"]);
+  const [startTime, setStartTime] = useState("09:00");
+  const [matchDuration, setMatchDuration] = useState(15);
+  const [breakBetween, setBreakBetween] = useState(5);
+  const [fieldCount, setFieldCount] = useState(2);
   const update = useApp((s) => s.updateTournament);
 
   const finish = () => {
@@ -23,10 +28,23 @@ export default function Wizard() {
       divisions.map((d) => d.trim()).filter(Boolean),
       esport
     );
-    if (individual) update(id, (x) => x.divisions.forEach((d) => (d.individualMode = true)));
+    update(id, (x) => {
+      if (individual) x.divisions.forEach((d) => (d.individualMode = true));
+      x.startTime = startTime;
+      x.matchDuration = Math.max(1, matchDuration);
+      x.breakBetween = Math.max(0, breakBetween);
+      for (let i = 0; i < Math.max(1, fieldCount); i++)
+        x.fields.push({ id: uid(), name: `Veld ${i + 1}` });
+    });
     // land op Deelnemers: de logische volgende stap na de wizard
     nav(`/t/${id}/deelnemers`);
   };
+
+  // capaciteitsindicatie: hoeveel wedstrijden passen er per uur op deze opzet?
+  const perHour =
+    matchDuration > 0
+      ? Math.floor((60 / (matchDuration + Math.max(0, breakBetween))) * Math.max(1, fieldCount))
+      : 0;
 
   return (
     <div className="min-h-screen">
@@ -39,7 +57,7 @@ export default function Wizard() {
           <div className="h-1.5 bg-indigo-200">
             <div
               className="h-full transition-all"
-              style={{ width: `${((step + 1) / 3) * 100}%`, background: "var(--accent)" }}
+              style={{ width: `${((step + 1) / 4) * 100}%`, background: "var(--accent)" }}
             />
           </div>
           <div className="p-8">
@@ -153,6 +171,69 @@ export default function Wizard() {
                 </div>
                 <div className="mt-8 flex justify-end gap-3">
                   <button className="btn-ghost" onClick={() => setStep(1)}>Terug</button>
+                  <button className="btn-primary" onClick={() => setStep(3)}>Volgende</button>
+                </div>
+              </>
+            )}
+
+            {step === 3 && (
+              <>
+                <h1 className="text-2xl font-bold">Hoe ziet de speeldag eruit?</h1>
+                <p className="mt-1 text-sm text-slate-600">
+                  Hiermee rekent het schema straks vanzelf — en alles is later nog aan te passen.
+                </p>
+                <div className="mt-6 space-y-5">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="label">Starttijd</label>
+                      <input
+                        type="time"
+                        className="input"
+                        value={startTime}
+                        onChange={(e) => setStartTime(e.target.value || "09:00")}
+                      />
+                    </div>
+                    <div>
+                      <label className="label">Aantal velden/banen</label>
+                      <input
+                        type="number"
+                        min={1}
+                        max={24}
+                        className="input"
+                        value={fieldCount}
+                        onChange={(e) => setFieldCount(+e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <label className="label">Wedstrijdduur (minuten)</label>
+                      <input
+                        type="number"
+                        min={1}
+                        className="input"
+                        value={matchDuration}
+                        onChange={(e) => setMatchDuration(+e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <label className="label">Rust tussen wedstrijden (minuten)</label>
+                      <input
+                        type="number"
+                        min={0}
+                        className="input"
+                        value={breakBetween}
+                        onChange={(e) => setBreakBetween(+e.target.value)}
+                      />
+                    </div>
+                  </div>
+                  {perHour > 0 && (
+                    <p className="rounded bg-slate-50 px-3 py-2 text-sm text-slate-600">
+                      📐 Met deze opzet passen er ongeveer <b>{perHour} wedstrijden per uur</b>
+                      {` (${Math.max(1, fieldCount)} ${fieldCount === 1 ? "veld" : "velden"} × ${matchDuration}+${Math.max(0, breakBetween)} min).`}
+                    </p>
+                  )}
+                </div>
+                <div className="mt-8 flex justify-end gap-3">
+                  <button className="btn-ghost" onClick={() => setStep(2)}>Terug</button>
                   <button className="btn-primary" onClick={finish}>Aanmaken</button>
                 </div>
               </>

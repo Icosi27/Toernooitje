@@ -9,6 +9,7 @@ import { fileToDataUrl } from "../logic/files";
 import { nlError } from "../logic/errors";
 import { appUrl, copyText } from "../logic/share";
 import { accentStyle } from "../logic/color";
+import { registrationState } from "../logic/registration";
 import { DonateButton } from "../components/monetization";
 import { KitIcon } from "../components/TeamBadge";
 import { Confetti, Trophy } from "../components/decor";
@@ -164,10 +165,16 @@ function Form({ t, isLocal }: { t: Tournament; isLocal: boolean }) {
               {indiv ? "Nog een speler inschrijven" : "Nog een team inschrijven"}
             </button>
           </div>
-        ) : !t.registrationOpen ? (
+        ) : !registrationState(t).open ? (
           <div className="card p-8 text-center">
-            <div className="mb-3 text-5xl">🔒</div>
-            <h2 className="text-xl font-bold">De inschrijving is gesloten</h2>
+            <div className="mb-3 text-5xl">{registrationState(t).reason === "vol" ? "🈵" : "🔒"}</div>
+            <h2 className="text-xl font-bold">
+              {registrationState(t).reason === "vol"
+                ? "Het toernooi zit vol"
+                : registrationState(t).reason === "verlopen"
+                  ? "De inschrijftermijn is verstreken"
+                  : "De inschrijving is gesloten"}
+            </h2>
             <p className="mt-2 text-sm text-slate-600">
               Neem contact op met de organisatie voor meer informatie.
             </p>

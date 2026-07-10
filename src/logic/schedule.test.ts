@@ -191,4 +191,20 @@ describe("shiftSchedule", () => {
     expect(first.start).toBe(beforeFirst);
     expect(second.start).toBe(addMinutes(beforeSecond!, 10));
   });
+
+  it("schuift met een fieldId alleen dat veld op", () => {
+    const t = autoSchedule(makeTournament(8, 2));
+    const fieldA = t.fields[0].id;
+    const rows = scheduledMatches(t);
+    const onA = rows.filter((r) => r.match.fieldId === fieldA);
+    const onB = rows.filter((r) => r.match.fieldId !== fieldA);
+    expect(onA.length).toBeGreaterThan(0);
+    expect(onB.length).toBeGreaterThan(0);
+    const beforeA = onA.map((r) => r.match.start);
+    const beforeB = onB.map((r) => r.match.start);
+    const count = shiftSchedule(t, 15, fieldA);
+    expect(count).toBe(onA.length);
+    onA.forEach((r, i) => expect(r.match.start).toBe(addMinutes(beforeA[i]!, 15)));
+    onB.forEach((r, i) => expect(r.match.start).toBe(beforeB[i]));
+  });
 });

@@ -195,9 +195,23 @@ returns void
 language plpgsql
 security definer set search_path = public
 as $$
+declare
+  t_data jsonb;
 begin
-  if coalesce((select data->>'registrationOpen' from tournaments where id = p_tid), 'false') <> 'true' then
+  select data into t_data from tournaments where id = p_tid;
+  if coalesce(t_data->>'registrationOpen', 'false') <> 'true' then
     raise exception 'De inschrijving is gesloten';
+  end if;
+  -- sluitdatum en teamlimiet van de organisator (vangnet naast de
+  -- gepubliceerde effectieve status, tegen races rond het laatste plekje)
+  if t_data->>'registrationDeadline' is not null
+     and t_data->>'registrationDeadline' < to_char(now(), 'YYYY-MM-DD') then
+    raise exception 'De inschrijftermijn is verstreken';
+  end if;
+  if (t_data->>'registrationLimit') ~ '^[0-9]+$'
+     and (select count(*) from registrations where tournament_id = p_tid and status <> 'afgewezen')
+         >= (t_data->>'registrationLimit')::int then
+    raise exception 'Het toernooi zit vol';
   end if;
   if (select count(*) from registrations where tournament_id = p_tid) >= 500 then
     raise exception 'Maximum aantal inschrijvingen bereikt';

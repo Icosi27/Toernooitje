@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Link, useOutletContext } from "react-router-dom";
-import type { Match, Tournament } from "../../types";
+import type { Match, Stage, Tournament } from "../../types";
 import { useApp } from "../../store";
 import { EmptyState, useDivIdx } from "../../components/ui";
 import { pouleStandings } from "../../logic/standings";
@@ -17,12 +17,33 @@ import {
 import { seedSlots } from "../../logic/bracket";
 import { TeamBadge } from "../../components/TeamBadge";
 import { PodiumCard } from "../../components/Podium";
+import { printOverview } from "../../logic/print";
 
 export default function Resultaten() {
   const t = useOutletContext<Tournament>();
   const update = useApp((s) => s.updateTournament);
   const [divIdx, setDivIdx] = useDivIdx(t.id, t.divisions.length);
   const div = t.divisions[Math.min(divIdx, t.divisions.length - 1)];
+
+  // undo voor "Start knock-outfase": snapshot van de fases vlak vóór de start,
+  // 8 seconden terug te draaien — een verkeerd ingevoerde poule-uitslag die je
+  // nét te laat ziet is anders onherstelbaar op het drukste moment van de dag
+  const [undoSnap, setUndoSnap] = useState<{ divId: string; stages: string; name: string } | null>(null);
+  const undoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const armUndo = (divId: string, stages: Stage[], name: string) => {
+    if (undoTimer.current) clearTimeout(undoTimer.current);
+    setUndoSnap({ divId, stages: JSON.stringify(stages), name });
+    undoTimer.current = setTimeout(() => setUndoSnap(null), 8000);
+  };
+  const undoStart = () => {
+    if (!undoSnap) return;
+    update(t.id, (x) => {
+      const dd = x.divisions.find((d) => d.id === undoSnap.divId);
+      if (dd) dd.stages = JSON.parse(undoSnap.stages) as Stage[];
+    });
+    if (undoTimer.current) clearTimeout(undoTimer.current);
+    setUndoSnap(null);
+  };
 
   /** Concept wordt pas doorgevoerd bij Opslaan — uitslagen blijven altijd te corrigeren. */
   const saveScore = (
@@ -282,6 +303,13 @@ export default function Resultaten() {
         >
           🧾 Wedstrijdtafel-modus (op tijd)
         </Link>
+        <button
+          className="btn-outline"
+          title="Print de actuele standen (en het schema) voor het prikbord"
+          onClick={() => printOverview(t)}
+        >
+          🖨️ Print
+        </button>
       </div>
 
       <div className="mb-6 empty:hidden">
@@ -315,8 +343,9 @@ export default function Resultaten() {
                 <button
                   className="shrink-0 cursor-pointer rounded-full bg-amber-400 px-6 py-3 font-black text-amber-950 shadow-lg transition hover:-translate-y-0.5 hover:bg-amber-300"
                   onClick={() => {
-                    if (!confirm(`${s.name} starten? De eindstand van de poules bepaalt de indeling — dit kan niet ongedaan worden gemaakt.`))
+                    if (!confirm(`${s.name} starten? De eindstand van de poules bepaalt de indeling. Je kunt het direct daarna nog even ongedaan maken.`))
                       return;
+                    armUndo(div.id, div.stages, s.name);
                     update(t.id, (x) => {
                       const dd = x.divisions.find((d) => d.id === div.id)!;
                       startBracketStage(dd, s.id, x.scoring);
@@ -478,6 +507,15 @@ export default function Resultaten() {
         </div>
         );
       })}
+
+      {undoSnap && (
+        <div className="fixed bottom-4 left-1/2 z-50 flex -translate-x-1/2 items-center gap-3 rounded-full bg-slate-900 px-5 py-2.5 text-sm text-white shadow-xl">
+          <span>🏁 {undoSnap.name} gestart</span>
+          <button className="cursor-pointer font-bold underline" onClick={undoStart}>
+            Ongedaan maken
+          </button>
+        </div>
+      )}
     </div>
   );
 }

@@ -262,6 +262,10 @@ export interface Tournament {
   registrationOpen?: boolean;
   registrationInfo?: string;
   registrations?: Registration[];
+  /** maximum aantal (niet-afgewezen) inschrijvingen; daarna automatisch dicht */
+  registrationLimit?: number;
+  /** laatste dag (ISO-datum) waarop inschrijven kan; daarna automatisch dicht */
+  registrationDeadline?: string;
 }
 
 export const defaultScoring = (): ScoringConfig => ({

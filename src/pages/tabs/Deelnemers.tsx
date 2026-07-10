@@ -6,6 +6,7 @@ import { EmptyState, Modal, ModalActions, Section, Toggle, useDivIdx } from "../
 import { appUrl, copyText } from "../../logic/share";
 import { decideRegistration, getClient, liveQuery, registerRefToken } from "../../logic/cloud";
 import { removeTeamEverywhere, teamInStages, withdrawTeam } from "../../logic/withdraw";
+import { registrationState } from "../../logic/registration";
 import { fileToDataUrl } from "../../logic/files";
 import { KitIcon, TeamBadge } from "../../components/TeamBadge";
 import { uid } from "../../logic/id";
@@ -583,6 +584,54 @@ export default function Deelnemers() {
                 {copied === "reglink" ? "✓ Gekopieerd" : "Kopieer inschrijflink"}
               </button>
             </div>
+          </div>
+
+          <div className="card mb-4 flex flex-wrap items-center gap-x-6 gap-y-3 p-4 text-sm">
+            <label className="flex items-center gap-2 text-xs text-slate-500">
+              Max. aantal teams
+              <input
+                type="number"
+                min={1}
+                className="input w-20"
+                placeholder="—"
+                value={t.registrationLimit ?? ""}
+                onChange={(e) =>
+                  u((x) => (x.registrationLimit = e.target.value ? Math.max(1, +e.target.value) : undefined))
+                }
+              />
+            </label>
+            <label className="flex items-center gap-2 text-xs text-slate-500">
+              Laatste inschrijfdag
+              <input
+                type="date"
+                className="input w-40"
+                value={t.registrationDeadline ?? ""}
+                onChange={(e) => u((x) => (x.registrationDeadline = e.target.value || undefined))}
+              />
+            </label>
+            {(() => {
+              const state = registrationState(t);
+              const count = (t.registrations ?? []).filter((r) => r.status !== "afgewezen").length;
+              if (state.reason === "vol")
+                return (
+                  <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-800">
+                    ⛔ Automatisch gesloten: vol ({count}/{t.registrationLimit})
+                  </span>
+                );
+              if (state.reason === "verlopen")
+                return (
+                  <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-800">
+                    ⛔ Automatisch gesloten: laatste inschrijfdag was {t.registrationDeadline}
+                  </span>
+                );
+              if (state.open && t.registrationLimit)
+                return (
+                  <span className="text-xs text-slate-500">
+                    {count}/{t.registrationLimit} plekken gevuld — sluit vanzelf zodra het vol is
+                  </span>
+                );
+              return null;
+            })()}
           </div>
 
           <div className="card mb-6 p-4">

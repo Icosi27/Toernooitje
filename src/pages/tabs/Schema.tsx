@@ -23,6 +23,7 @@ import type { Division, ScheduleEvent, Tournament } from "../../types";
 import { useApp } from "../../store";
 import { EmptyState, Modal, ModalActions } from "../../components/ui";
 import { addMinutes, autoSchedule, shiftSchedule } from "../../logic/schedule";
+import { printOverview } from "../../logic/print";
 import { splitField } from "../../logic/fields";
 import { allMatches, resolveSlot, slotLabel } from "../../logic/resolve";
 import { isPlayed } from "../../logic/standings";
@@ -84,6 +85,8 @@ export default function Schema() {
 
   // ---- modals ----
   const [fieldModal, setFieldModal] = useState<{ id?: string } | null>(null);
+  // uitloop-schuiven: leeg = alle velden, anders alleen dit veld
+  const [shiftField, setShiftField] = useState("");
   const [fieldName, setFieldName] = useState("");
   const [fieldStart, setFieldStart] = useState("");
   const [splitCount, setSplitCount] = useState("6");
@@ -272,18 +275,46 @@ export default function Schema() {
         >
           ⚡ Plan automatisch
         </button>
+        <button
+          className="btn-outline"
+          disabled={!hasMatches || plannedCount === 0}
+          title="Print het speelschema en de standen voor het prikbord of de wedstrijdtafel"
+          onClick={() => printOverview(t)}
+        >
+          🖨️ Print
+        </button>
       </div>
 
       {plannedCount > 0 && (
         <div className="mb-4 flex flex-wrap items-center gap-2 text-sm text-slate-600">
           <span title="Schuift alle nog niet gespeelde wedstrijden en de events op — gespeelde blijven staan">
-            ⏱️ Uitloop? Schuif de rest op:
+            ⏱️ Uitloop? Schuif
           </span>
+          {t.fields.length > 1 && (
+            <select
+              className="card cursor-pointer px-2 py-1 text-sm"
+              title="Loopt maar één veld uit? Schuif dan alleen dat veld"
+              value={shiftField}
+              onChange={(e) => setShiftField(e.target.value)}
+            >
+              <option value="">alle velden</option>
+              {t.fields.map((f) => (
+                <option key={f.id} value={f.id}>alleen {f.name}</option>
+              ))}
+            </select>
+          )}
+          <span>op:</span>
           {[-5, 5, 10, 15].map((m) => (
             <button
               key={m}
               className="btn-outline px-3 py-1"
-              onClick={() => commit(`Schema ${m > 0 ? `+${m}` : m} min geschoven`, (x) => void shiftSchedule(x, m))}
+              onClick={() => {
+                const fieldName = t.fields.find((f) => f.id === shiftField)?.name;
+                commit(
+                  `${fieldName ?? "Schema"} ${m > 0 ? `+${m}` : m} min geschoven`,
+                  (x) => void shiftSchedule(x, m, shiftField || undefined)
+                );
+              }}
             >
               {m > 0 ? `+${m}` : m} min
             </button>
