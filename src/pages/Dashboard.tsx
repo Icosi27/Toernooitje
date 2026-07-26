@@ -177,7 +177,7 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen" style={accentStyle(t.presentation.accentColor)}>
-      <header className="accent-header sticky top-0 z-40 flex items-center justify-between px-4 py-3 text-white">
+      <header className="stadium sticky top-0 z-40 flex items-center justify-between px-4 py-3 text-white">
         <button className="flex items-center gap-3 text-lg font-bold cursor-pointer" onClick={() => nav("/app")}>
           <span>←</span> {t.name}
         </button>

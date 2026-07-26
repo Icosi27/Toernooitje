@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { useTournament } from "../store";
-import type { Division, Match, Tournament } from "../types";
+import type { Division, Match, Team, Tournament } from "../types";
 import { isPlayed, pouleStandings } from "../logic/standings";
 import { individualStandings } from "../logic/individual";
 import { qualifyingRanks, resolveSlot, slotLabel, winnerOf } from "../logic/resolve";
@@ -296,7 +296,7 @@ function LiveInner({
               className={`cursor-pointer rounded-full px-4 py-2.5 text-sm font-semibold ${
                 (slideshow ? slide?.page : page) === p ? "bg-white" : "bg-white/20 text-white hover:bg-white/30"
               }`}
-              style={(slideshow ? slide?.page : page) === p ? { color: t.presentation.accentColor } : undefined}
+              style={(slideshow ? slide?.page : page) === p ? { color: "var(--accent-strong)" } : undefined}
             >
               {labels[p]}
             </button>
@@ -329,10 +329,13 @@ function LiveInner({
 
       {!slideshow && allTeams.length > 0 && (
         <div className="border-b border-slate-200 bg-white px-4 py-2">
-          <div className="mx-auto flex max-w-4xl flex-wrap items-center gap-2 text-sm">
-            <span className="text-slate-500">⭐ Mijn team:</span>
+          <div
+            className="mx-auto flex max-w-4xl flex-wrap items-center gap-2 rounded-lg px-3 py-2 text-sm"
+            style={{ background: "var(--accent-soft)" }}
+          >
+            <span className="font-semibold">⭐ Mijn team:</span>
             <select
-              className="cursor-pointer rounded border border-slate-200 px-3 py-2"
+              className="cursor-pointer rounded border border-slate-200 bg-white px-3 py-2"
               value={myTeam}
               onChange={(e) => chooseTeam(e.target.value)}
             >
@@ -380,7 +383,7 @@ function LiveInner({
               // de eerste stand eerst, dan pas reclame: het publiek komt voor de stand
               <>
                 {t.divisions.map((d) => <ChampionBanner key={`c-${d.id}`} t={t} d={d} />)}
-                {t.divisions.map((d) => <PodiumCard key={`p-${d.id}`} t={t} d={d} />)}
+                {t.divisions.map((d) => <PodiumCard key={`p-${d.id}`} t={t} d={d} myTeam={myTeam || undefined} />)}
                 {t.divisions[0] && (
                   <Standen key={t.divisions[0].id} t={t} d={t.divisions[0]} myTeam={myTeam} />
                 )}
@@ -436,7 +439,7 @@ function LiveInner({
                     {slide?.page === "standen" && presDiv && (
                       <>
                         <ChampionBanner t={t} d={presDiv} />
-                        <PodiumCard t={t} d={presDiv} />
+                        <PodiumCard t={t} d={presDiv} myTeam={myTeam || undefined} />
                         <Standen t={t} d={presDiv} myTeam={myTeam} onlyActive pouleChunk={slide.chunk} />
                       </>
                     )}
@@ -475,7 +478,7 @@ function LiveTicker({ t }: { t: Tournament }) {
     <div className="shrink-0 overflow-hidden bg-slate-950 py-1.5">
       <div className="ticker gap-10">
         {doubled.map((s, i) => (
-          <span key={i} className="score whitespace-nowrap text-xs text-white/60">
+          <span key={i} className="score whitespace-nowrap text-xs text-white/80">
             {s}
           </span>
         ))}
@@ -495,8 +498,8 @@ function ChampionBanner({ t, d }: { t: Tournament; d: Division }) {
     const team = resolveSlot(w === "a" ? finale.a : finale.b, d, t.scoring);
     if (!team) return null;
     return (
-      <div className="stadium fade-in relative overflow-hidden rounded-2xl p-6 text-center text-white">
-        <Confetti count={18} />
+      <div className="card-stadium fade-in text-center">
+        <Confetti count={18} once />
         <div className="relative flex flex-col items-center gap-2">
           <Trophy size={110} />
           <div className="mt-2 text-xs font-bold uppercase tracking-widest text-white/70">
@@ -539,7 +542,26 @@ function teamMatches(
   });
 }
 
-/** Grote kaart: de eerstvolgende wedstrijd van mijn team, plus het hele dagprogramma. */
+/** Eén kant van de matchup: badge (logo/tenue) groot met de teamnaam eronder. */
+function MatchupSide({ team, name, dark }: { team?: Team; name: string; dark?: boolean }) {
+  return (
+    <div className="flex min-w-0 flex-1 flex-col items-center gap-1.5">
+      <TeamBadge team={team} size={52} />
+      <span className={`max-w-full truncate text-center text-sm font-bold sm:text-base ${dark ? "text-white" : ""}`}>
+        {name}
+      </span>
+    </div>
+  );
+}
+
+/** "HH:MM" verschil in minuten (b - a); negatief als b vóór a ligt. */
+function minutesDiff(a: string, b: string): number {
+  const [ah, am] = a.split(":").map(Number);
+  const [bh, bm] = b.split(":").map(Number);
+  return bh * 60 + bm - (ah * 60 + am);
+}
+
+/** Grote kaart: de eerstvolgende wedstrijd van mijn team als matchup, plus het dagprogramma. */
 function NextMatchCard({ t, teamId }: { t: Tournament; teamId: string }) {
   const mine = teamMatches(t, teamId);
   const next = mine.find(({ match: m, ref }) => !ref && !isPlayed(m));
@@ -547,15 +569,52 @@ function NextMatchCard({ t, teamId }: { t: Tournament; teamId: string }) {
   const team = t.divisions.flatMap((d) => d.teams).find((tm) => tm.id === teamId);
   const last = [...mine].reverse().find(({ match: m }) => m.start);
 
+  // klok-tik voor het aftellen ("nog 25 min") — elke 30s is ruim genoeg
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const iv = setInterval(() => setTick((x) => x + 1), 30000);
+    return () => clearInterval(iv);
+  }, []);
+
+  const mySide = (m: Match, d: Division): "a" | "b" =>
+    resolveSlot(m.a, d, t.scoring)?.id === teamId ? "a" : "b";
+
+  // winst-microviering: eenmalig en kort, alleen bij een nieuw binnengekomen
+  // overwinning — nooit bij het (her)openen van de pagina met oude uitslagen
+  const [celebrate, setCelebrate] = useState(false);
+  const wonIds = mine
+    .filter(({ match: m, division: d, ref }) => !ref && isPlayed(m) && winnerOf(m) === mySide(m, d))
+    .map((x) => x.match.id);
+  const wonKey = wonIds.join(",");
+  const seenKey = `toernooitje-viering-${t.id}-${teamId}`;
+  useEffect(() => {
+    if (wonIds.length === 0) return;
+    let seen: string[] = [];
+    try {
+      seen = JSON.parse(localStorage.getItem(seenKey) ?? "[]") as string[];
+    } catch {
+      seen = [];
+    }
+    const fresh = wonIds.filter((id) => !seen.includes(id));
+    if (fresh.length === 0) return;
+    try {
+      localStorage.setItem(seenKey, JSON.stringify([...seen, ...fresh]));
+    } catch {
+      // opslag vol: dan geen onthouden viering
+    }
+    if (seen.length === 0) return; // eerste bezoek: historie stil registreren
+    setCelebrate(true);
+    const h = setTimeout(() => setCelebrate(false), 4000);
+    return () => clearTimeout(h);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wonKey, seenKey]);
+
   if (mine.length === 0)
     return (
       <div className="card p-4 text-sm text-slate-500">
         Nog geen wedstrijden bekend voor <b>{team?.name}</b>.
       </div>
     );
-
-  const mySide = (m: Match, d: Division): "a" | "b" =>
-    resolveSlot(m.a, d, t.scoring)?.id === teamId ? "a" : "b";
 
   const myDivision = t.divisions.find((d) => d.teams.some((tm) => tm.id === teamId));
   const scenario = myDivision ? qualificationScenario(myDivision, teamId, t.scoring) : null;
@@ -575,37 +634,61 @@ function NextMatchCard({ t, teamId }: { t: Tournament; teamId: string }) {
     return ta.localeCompare(tb);
   });
 
+  const live = !!next?.match.inProgress;
+  const countdown =
+    next?.match.start && !live ? minutesDiff(nowHHMM(), next.match.start) : null;
+
   return (
-    <div className="card fade-in overflow-hidden">
-      <div className="px-4 py-1.5 text-xs font-bold uppercase tracking-wide" style={{ background: "var(--accent)", color: "var(--accent-text)" }}>
-        {next ? (next.match.inProgress ? "🔴 Jullie spelen nu" : "Jullie volgende wedstrijd") : "Alle wedstrijden gespeeld"}
+    <div className="card fade-in relative overflow-hidden">
+      {celebrate && (
+        <div className="pointer-events-none absolute inset-0 z-10">
+          <Confetti count={12} />
+          <div className="fade-in absolute inset-x-0 top-8 text-center text-xl font-black" style={{ color: "var(--accent)" }}>
+            Gewonnen! 🎉
+          </div>
+        </div>
+      )}
+      <div className={live ? "badge-live w-full justify-start rounded-none px-4 py-1.5 text-xs" : "card-strip-head"}>
+        {next
+          ? live
+            ? <><span className="live-dot inline-block h-2 w-2 rounded-full bg-white" /> Jullie spelen nu</>
+            : "Jullie volgende wedstrijd"
+          : "Alle wedstrijden gespeeld"}
       </div>
       {next && (
-        <div className="flex flex-wrap items-center gap-x-6 gap-y-1 p-4">
-          {next.match.inProgress ? (
-            <span className="score flex items-center gap-2 text-3xl font-black text-red-500">
-              <span className="live-dot inline-block h-3 w-3 rounded-full bg-red-500" />
-              {next.match.scoreA ?? 0}–{next.match.scoreB ?? 0}
-            </span>
-          ) : (
-            <span className="score accent-score text-3xl font-black">
-              {next.match.start ?? "—"}
-              {next.match.start && (
-                <span className="ml-1 text-base font-bold text-slate-400">
-                  –{addMinutes(next.match.start, t.matchDuration)}
+        <div className={live ? "stadium-night px-4 py-5" : "px-4 py-4"}>
+          <div className="flex items-start justify-center gap-2 sm:gap-6">
+            <MatchupSide
+              team={resolveSlot(next.match.a, next.division, t.scoring) ?? undefined}
+              name={slotLabel(next.match.a, next.division, t.scoring)}
+              dark={live}
+            />
+            <div className="flex shrink-0 flex-col items-center pt-1">
+              {live ? (
+                <span className="score score-klok flex items-center gap-2 text-white">
+                  <span className="live-dot inline-block h-3 w-3 rounded-full bg-red-500" />
+                  {next.match.scoreA ?? 0}–{next.match.scoreB ?? 0}
                 </span>
+              ) : (
+                <>
+                  <span className="score score-lg accent-score">{next.match.start ?? "—"}</span>
+                  {countdown !== null && countdown > 0 && countdown <= 180 && (
+                    <span className="text-xs font-semibold text-slate-500">nog {countdown} min</span>
+                  )}
+                </>
               )}
-            </span>
-          )}
-          <div className="min-w-0">
-            <div className="font-semibold">
-              {slotLabel(next.match.a, next.division, t.scoring)} — {slotLabel(next.match.b, next.division, t.scoring)}
             </div>
-            <div className="text-sm text-slate-500">
-              {fieldName(next.match.fieldId) ?? "veld n.t.b."}
-              {next.match.label ? ` · ${next.match.label}` : ""}
-              {t.divisions.length > 1 ? ` · ${next.division.name}` : ""}
-            </div>
+            <MatchupSide
+              team={resolveSlot(next.match.b, next.division, t.scoring) ?? undefined}
+              name={slotLabel(next.match.b, next.division, t.scoring)}
+              dark={live}
+            />
+          </div>
+          <div className={`mt-2 text-center text-sm ${live ? "text-white/75" : "text-slate-500"}`}>
+            {fieldName(next.match.fieldId) ?? "veld n.t.b."}
+            {!live && next.match.start ? ` · ${next.match.start}–${addMinutes(next.match.start, t.matchDuration)}` : ""}
+            {next.match.label ? ` · ${next.match.label}` : ""}
+            {t.divisions.length > 1 ? ` · ${next.division.name}` : ""}
           </div>
         </div>
       )}
@@ -663,10 +746,15 @@ function NextMatchCard({ t, teamId }: { t: Tournament; teamId: string }) {
                 </span>
                 {result && (
                   <span
-                    className={`score shrink-0 text-xs font-bold ${
-                      result === "w" ? "text-green-600" : result === "l" ? "text-red-500" : "text-slate-500"
+                    className={`score shrink-0 rounded px-1.5 py-0.5 text-xs font-bold ${
+                      result === "w"
+                        ? "bg-green-100 text-green-700"
+                        : result === "l"
+                          ? "bg-red-50 text-red-500"
+                          : "bg-slate-100 text-slate-500"
                     }`}
                   >
+                    {result === "w" ? "W " : result === "l" ? "V " : "G "}
                     {m.scoreA}–{m.scoreB}
                   </span>
                 )}
@@ -759,6 +847,7 @@ function Standen({
             return shown.map((p) => {
               const qual = qualifyingRanks(d, p.id);
               const maxQual = qual.length > 0 ? Math.max(...qual) : 0;
+              const rows = pouleStandings(p, t.scoring);
               return (
                 <div key={p.id} className="card p-4">
                   <div className="mb-2 font-semibold">{p.name}</div>
@@ -773,16 +862,19 @@ function Standen({
                       </tr>
                     </thead>
                     <tbody>
-                      {pouleStandings(p, t.scoring).map((r, i) => {
+                      {rows.map((r, i) => {
                         const qualifies = maxQual > 0 && i + 1 <= maxQual;
+                        // de "doorgaanslijn" zoals op tv: boven deze streep ga je door
+                        const isLine = maxQual > 0 && i + 1 === maxQual && maxQual < rows.length;
                         const mine = myTeam === r.teamId;
                         return (
                           <tr
                             key={r.teamId}
                             className={`border-t border-slate-100 ${mine ? "font-semibold" : ""}`}
                             style={{
-                              boxShadow: qualifies ? "inset 3px 0 0 var(--accent)" : undefined,
+                              boxShadow: qualifies ? "inset 4px 0 0 var(--accent)" : undefined,
                               background: mine ? "var(--accent-soft)" : undefined,
+                              borderBottom: isLine ? "2px dashed var(--accent)" : undefined,
                             }}
                           >
                             <td className="py-1"><RankBadge pos={i + 1} /></td>
@@ -839,15 +931,17 @@ function Standen({
                                   : undefined
                               }
                             >
-                              <div className={`flex justify-between gap-2 ${mineA ? "font-semibold" : ""}`}>
-                                <span className="truncate">
+                              <div className={`flex items-center justify-between gap-2 ${mineA ? "font-semibold" : ""}`}>
+                                <span className="flex min-w-0 items-center gap-1.5 truncate">
+                                  <TeamBadge team={resolveSlot(m.a, d, t.scoring) ?? undefined} size={16} />
                                   {slotLabel(m.a, d, t.scoring)}
                                   {mineA && <span className="ml-1 text-xs" style={{ color: "var(--accent)" }}>⭐</span>}
                                 </span>
                                 <b className="score accent-score">{m.scoreA ?? ""}</b>
                               </div>
-                              <div className={`flex justify-between gap-2 border-t border-slate-100 pt-1 ${mineB ? "font-semibold" : ""}`}>
-                                <span className="truncate">
+                              <div className={`flex items-center justify-between gap-2 border-t border-slate-100 pt-1 ${mineB ? "font-semibold" : ""}`}>
+                                <span className="flex min-w-0 items-center gap-1.5 truncate">
+                                  <TeamBadge team={resolveSlot(m.b, d, t.scoring) ?? undefined} size={16} />
                                   {slotLabel(m.b, d, t.scoring)}
                                   {mineB && <span className="ml-1 text-xs" style={{ color: "var(--accent)" }}>⭐</span>}
                                 </span>
@@ -1065,11 +1159,9 @@ function SchemaView({
                     </span>
                   )}
                   {busy.has(m.id) && (
-                    <span
-                      className="ml-2 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase"
-                      style={{ background: "var(--accent)", color: "var(--accent-text)" }}
-                    >
-                      ● bezig
+                    <span className="badge-live ml-2">
+                      <span className="live-dot inline-block h-1.5 w-1.5 rounded-full bg-white" />
+                      bezig
                     </span>
                   )}
                 </td>

@@ -57,7 +57,7 @@ export default function Auth() {
 
   return (
     <div className="min-h-screen bg-slate-50">
-      <nav className="accent-header px-4 py-3 text-white">
+      <nav className="stadium px-4 py-3 text-white">
         <div className="mx-auto flex max-w-3xl items-center justify-between">
           <Link to="/" className="flex items-center gap-2 font-black">🏆 Toernooitje</Link>
         </div>

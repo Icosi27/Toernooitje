@@ -56,25 +56,23 @@ export function Cockpit({ t }: { t: Tournament }) {
 
   return (
     <div className="card mb-6 overflow-hidden">
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-2 text-white" style={{ background: "var(--accent)" }}>
-        <span className="text-sm font-bold uppercase tracking-wide" style={{ color: "var(--accent-text)" }}>
-          🎛️ Vandaag
-        </span>
-        <span className="score text-sm font-semibold" style={{ color: "var(--accent-text)" }}>{hhmm}</span>
-        <span className="text-sm" style={{ color: "var(--accent-text)" }}>
-          {played}/{rows.length} uitslagen binnen
+      <div className="stadium flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-2.5 text-white">
+        <span className="text-sm font-bold uppercase tracking-wide">🎛️ Vandaag</span>
+        <span className="score score-lg text-xl leading-none">{hhmm}</span>
+        <span className="text-sm text-white/90">
+          <b className="score">{played}/{rows.length}</b> uitslagen binnen
         </span>
         {(fields.present || fields.paid) && teams.length > 0 && (
-          <span className="text-sm" style={{ color: "var(--accent-text)" }}>
+          <span className="text-sm text-white/90">
             {fields.present && `${teams.filter((tm) => tm.present).length}/${teams.length} aanwezig`}
             {fields.present && fields.paid && " · "}
             {fields.paid && `${teams.filter((tm) => tm.paid).length}/${teams.length} betaald`}
           </span>
         )}
         <span className="ml-auto flex gap-3 text-xs">
-          <Link to={`/t/${t.id}/schema`} className="underline" style={{ color: "var(--accent-text)" }}>Schema</Link>
-          <Link to={`/t/${t.id}/resultaten`} className="underline" style={{ color: "var(--accent-text)" }}>Uitslagen</Link>
-          <Link to={`/live/${t.id}`} className="underline" style={{ color: "var(--accent-text)" }}>Presentatie</Link>
+          <Link to={`/t/${t.id}/schema`} className="text-white underline opacity-90 hover:opacity-100">Schema</Link>
+          <Link to={`/t/${t.id}/resultaten`} className="text-white underline opacity-90 hover:opacity-100">Uitslagen</Link>
+          <Link to={`/live/${t.id}`} className="text-white underline opacity-90 hover:opacity-100">Presentatie</Link>
         </span>
       </div>
       <div className="divide-y divide-slate-100">
@@ -95,7 +93,10 @@ export function Cockpit({ t }: { t: Tournament }) {
             ) : current ? (
               <span className="min-w-0 truncate">
                 {current.match.inProgress ? (
-                  <span className="mr-1.5 font-bold text-red-500">● live</span>
+                  <span className="badge-live mr-1.5">
+                    <span className="live-dot inline-block h-1.5 w-1.5 rounded-full bg-white" />
+                    live
+                  </span>
                 ) : (
                   <span className="mr-1.5 text-slate-400">nu:</span>
                 )}

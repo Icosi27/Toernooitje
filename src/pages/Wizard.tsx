@@ -48,13 +48,13 @@ export default function Wizard() {
 
   return (
     <div className="min-h-screen">
-      <header className="accent-header flex items-center justify-between px-6 py-4 text-white">
+      <header className="stadium flex items-center justify-between px-6 py-4 text-white">
         <div className="flex items-center gap-2 text-xl font-bold">🏆 Toernooitje</div>
       </header>
 
       <div className="mx-auto mt-10 max-w-lg px-4">
         <div className="card overflow-hidden">
-          <div className="h-1.5 bg-indigo-200">
+          <div className="h-1.5" style={{ background: "var(--accent-soft)" }}>
             <div
               className="h-full transition-all"
               style={{ width: `${((step + 1) / 4) * 100}%`, background: "var(--accent)" }}
